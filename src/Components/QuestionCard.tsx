@@ -111,7 +111,7 @@ export const QuestionCard = memo(function QuestionCard({
                                 )}
                             </div>
 
-                            {hasNext && <div className="h-[120px]" />}
+                            {hasNext && <div className="h-[160px] md:h-[120px]" />}
                         </div>
                     );
                 }
@@ -234,7 +234,7 @@ export const QuestionCard = memo(function QuestionCard({
                                 </ActionPill>
                             </div>
 
-                            {hasNext && <div className="h-[120px]" />}
+                            {hasNext && <div className="h-[160px] md:h-[120px]" />}
                         </div>
                     );
                 }
@@ -347,7 +347,7 @@ export const QuestionCard = memo(function QuestionCard({
                             <div className="h-6" />
                         )}
 
-                        {hasNext && !isRF && <div className="h-[120px]" />}
+                        {hasNext && !isRF && <div className="h-[160px] md:h-[120px]" />}
                     </div>
                 );
             })}

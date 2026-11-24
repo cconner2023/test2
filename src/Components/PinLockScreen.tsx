@@ -1,8 +1,10 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { Lock } from 'lucide-react'
+import { X, Check } from 'lucide-react'
 import { PinKeypad } from '@/Components/primitives/PinKeypad'
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
 import { DeviceLinkQrView } from './DeviceLinkQrView'
+import { PasswordInput } from '@/Components/primitives/FormInputs'
+import { AuthBackdrop, AuthHeader, AUTH_CARD } from './AuthChrome'
 import { FORGOT_PREFILL_KEY } from './LoginScreen'
 import { useAuthStore } from '../stores/useAuthStore'
 import {
@@ -32,6 +34,7 @@ export const PinLockScreen = ({ onUnlock, email }: PinLockScreenProps) => {
   const biometricAttempted = useRef(false)
   const [passwordInput, setPasswordInput] = useState('')
   const [passwordError, setPasswordError] = useState(false)
+  const passwordRef = useRef<HTMLInputElement>(null)
   const [showSwitch, setShowSwitch] = useState(false)
   const [switching, setSwitching] = useState(false)
   const [showLink, setShowLink] = useState(false)
@@ -129,6 +132,10 @@ export const PinLockScreen = ({ onUnlock, email }: PinLockScreenProps) => {
     }
   }, [onUnlock, setError, setLockout])
 
+  useEffect(() => {
+    if (lockout.isPermanentlyLocked) passwordRef.current?.focus()
+  }, [lockout.isPermanentlyLocked])
+
   const lockoutMessage = lockout.isPermanentlyLocked
     ? 'PIN locked. Enter password to unlock.'
     : lockout.isLockedOut
@@ -136,40 +143,46 @@ export const PinLockScreen = ({ onUnlock, email }: PinLockScreenProps) => {
       : undefined
 
   const passwordForm = lockout.isPermanentlyLocked ? (
-    <div className="flex flex-col items-center gap-3 mb-6 w-full">
-      <input
-        type="password"
-        value={passwordInput}
-        onChange={e => { setPasswordInput(e.target.value); setPasswordError(false) }}
-        onKeyDown={e => e.key === 'Enter' && handlePasswordUnlock()}
-        placeholder="Account password"
-        autoFocus
-        className="w-full px-4 py-3 rounded-lg bg-themewhite2 text-primary text-center text-sm border border-themegray1/30 focus:outline-none focus:border-themeblue2"
-      />
-      {passwordError && (
-        <p className="text-[10pt] text-themeredred">Incorrect password</p>
-      )}
-      <button
-        onClick={handlePasswordUnlock}
-        disabled={!passwordInput}
-        className="w-full py-3 rounded-lg bg-themeblue3 text-white text-sm font-medium disabled:opacity-40"
-      >
-        Unlock
-      </button>
+    <div className={`${AUTH_CARD} mb-6 w-full`}>
+      <form onSubmit={e => { e.preventDefault(); handlePasswordUnlock() }}>
+        <PasswordInput
+          value={passwordInput}
+          onChange={v => { setPasswordInput(v); setPasswordError(false) }}
+          placeholder="Account password"
+          autoComplete="current-password"
+          inputRef={passwordRef}
+          invalid={passwordError}
+          hint={passwordError ? 'Incorrect password' : null}
+        />
+        <div className={`flex items-center justify-end gap-2 px-3 overflow-hidden transition-all duration-300 ease-out ${passwordInput ? 'max-h-14 py-2 opacity-100' : 'max-h-0 py-0 opacity-0'}`}>
+          <button
+            type="button"
+            onClick={() => setPasswordInput('')}
+            className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
+          >
+            <X size={16} />
+          </button>
+          <button
+            type="submit"
+            className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center bg-themeblue3 text-white active:scale-95 transition-all"
+          >
+            <Check size={16} />
+          </button>
+        </div>
+      </form>
     </div>
   ) : undefined
 
   return (
-    <div className="fixed inset-0 z-30 bg-themewhite overflow-y-auto select-none"
+    <div className="fixed inset-0 z-30 bg-themewhite dark:bg-themewhite3 overflow-y-auto select-none"
          style={{ paddingTop: 'var(--sat)', paddingBottom: 'var(--sab)' }}>
-      <div className="min-h-full flex flex-col items-center justify-center py-8 px-6">
-      {/* Header */}
-      <div className="flex flex-col items-center mb-8">
-        <div className="w-14 h-14 rounded-full bg-themeblue2/10 flex items-center justify-center mb-4">
-          <Lock size={26} className="text-themeblue2" />
-        </div>
-        <h1 className="text-xl font-bold text-primary tracking-wide">ADTMC</h1>
-      </div>
+      <AuthBackdrop />
+      <div className="relative min-h-full flex flex-col items-center justify-center py-8 px-6">
+      <AuthHeader
+        className="mb-8 max-w-[270px]"
+        title="Locked"
+        subtitle={email ? <span className="block truncate">{email}</span> : undefined}
+      />
 
       {/* PIN Keypad */}
       <div className="w-[270px]">

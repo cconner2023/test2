@@ -1,8 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import type { RefObject } from 'react'
 import { QrCode, Mail, Hash, Send } from 'lucide-react'
-import { ActionPill } from '../primitives/ActionPill'
-import { ActionButton } from '../primitives/ActionButton'
+import { PillButton } from '../primitives/HeaderPill'
 import { TextInput } from '../primitives/FormInputs'
 import { useBarcodeScanner } from '../../Hooks/useBarcodeScanner'
 import { supabase } from '../../lib/supabase'
@@ -204,16 +203,8 @@ export function useOffRosterAdd({
     )
   }, [startScanning])
 
-  const findFooter = (onFind: () => void, disabled: boolean) => (
-    <ActionPill>
-      <ActionButton
-        icon={Send}
-        label="Find User"
-        variant={disabled ? 'disabled' : 'default'}
-        onClick={onFind}
-      />
-    </ActionPill>
-  )
+  const findAction = (onFind: () => void, disabled: boolean) =>
+    disabled ? null : <PillButton icon={Send} iconSize={18} accent="success" label="Find User" onClick={onFind} />
 
   const screens: Record<string, StackScreen> = {
     addmethods: {
@@ -243,7 +234,7 @@ export function useOffRosterAdd({
     addemail: {
       title: 'Find by Email',
       onBack: (nav) => { setEmailValue(''); setEmailError(null); nav.pop() },
-      rightFooter: findFooter(handleEmailLookup, !emailValue.trim() || emailLoading),
+      headerActions: findAction(handleEmailLookup, !emailValue.trim() || emailLoading),
       render: () => (
         <div className="px-1 py-1">
           <TextInput
@@ -261,7 +252,7 @@ export function useOffRosterAdd({
     addcode: {
       title: 'Enter User Code',
       onBack: (nav) => { setCodeValue(''); setCodeError(null); nav.pop() },
-      rightFooter: findFooter(handleCodeLookup, !codeValue.trim() || codeLoading),
+      headerActions: findAction(handleCodeLookup, !codeValue.trim() || codeLoading),
       render: () => (
         <div className="px-1 py-1">
           <TextInput

@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from 'react'
+import { useId, useLayoutEffect, useRef, useState } from 'react'
 
 /**
  * Decorative brand-pane art for the desktop login: a feedforward network drawn
@@ -119,7 +119,39 @@ const SPAN_Y = 0.7
 const FEED = { x: 0, y: 0.2, points: 4 }
 const FEED_TARGET = NET.nodes.filter(n => n.active)[2]
 
-const FADE = 'linear-gradient(to right, #000 55%, transparent)'
+const FADES = {
+  right: 'linear-gradient(to right, #000 55%, transparent)',
+  bottom: 'linear-gradient(to bottom, #000 45%, transparent)',
+}
+
+/** Blurred mist banks; each layer drifts on its own clock. */
+const FOG = [
+  { cls: 'login-fog-a', tone: 'wisp', opacity: 0.22, blobs: [[60, 120, 120, 26], [250, 95, 150, 22], [400, 150, 110, 24]] },
+  { cls: 'login-fog-b', tone: 'bank', opacity: 0.55, blobs: [[20, 250, 140, 34], [200, 285, 170, 30], [380, 240, 130, 36]] },
+  { cls: 'login-fog-c', tone: 'bank', opacity: 0.85, blobs: [[100, 380, 200, 48], [330, 370, 190, 44]] },
+] as const
+
+function Fog({ bankClassName }: { bankClassName: string }) {
+  const uid = useId().replace(/:/g, '')
+  return (
+    <>
+      {FOG.map(layer => (
+        <svg key={layer.cls}
+          className={`absolute top-0 -left-[10%] w-[120%] h-full ${layer.cls} ${layer.tone === 'bank' ? bankClassName : 'text-themeblue1'}`}
+          viewBox="-40 0 480 400" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <filter id={`${uid}-${layer.cls}`} x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur stdDeviation="18" />
+            </filter>
+          </defs>
+          <g filter={`url(#${uid}-${layer.cls})`} fill="currentColor" fillOpacity={layer.opacity}>
+            {layer.blobs.map(([cx, cy, rx, ry], i) => <ellipse key={i} cx={cx} cy={cy} rx={rx} ry={ry} />)}
+          </g>
+        </svg>
+      ))}
+    </>
+  )
+}
 
 function useSize<T extends Element>() {
   const ref = useRef<T>(null)
@@ -134,7 +166,12 @@ function useSize<T extends Element>() {
   return [ref, size] as const
 }
 
-export function LoginArt({ className = '' }: { className?: string }) {
+export function LoginArt({ className = '', fade = 'right', fog = false, fogClassName = 'text-themewhite2 dark:text-themewhite' }: {
+  className?: string
+  fade?: keyof typeof FADES
+  fog?: boolean
+  fogClassName?: string
+}) {
   // Two layers: the map stretches to cover the pane (slice); the network is laid
   // out in measured pixels so it spans the pane while nodes keep a fixed size.
   const [netRef, { w, h }] = useSize<HTMLDivElement>()
@@ -146,7 +183,7 @@ export function LoginArt({ className = '' }: { className?: string }) {
     // Mask fades the art out along the right edge so it dissolves into the form
     // pane instead of stopping hard at the divider.
     <div className={className} aria-hidden="true"
-      style={{ maskImage: FADE, WebkitMaskImage: FADE }}>
+      style={{ maskImage: FADES[fade], WebkitMaskImage: FADES[fade] }}>
       <svg className="absolute inset-0 w-full h-full" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid slice" fill="none" xmlns="http://www.w3.org/2000/svg">
         <g className="stroke-themeblue3">
           {GRID.map(v => (
@@ -211,6 +248,8 @@ export function LoginArt({ className = '' }: { className?: string }) {
           </svg>
         )}
       </div>
+
+      {fog && <div className="absolute inset-0 overflow-hidden"><Fog bankClassName={fogClassName} /></div>}
     </div>
   )
 }

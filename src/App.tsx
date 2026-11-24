@@ -678,7 +678,7 @@ case 'mapOverlay':
           {/* Content area — ADTMC 2-column grid (TC3 now lives in its own drawer) */}
           <div className="md:flex-1 h-full overflow-hidden absolute inset-0 md:relative md:inset-auto md:mt-2 md:mx-2">
             <div
-              className={navigation.isMobile ? 'h-full relative' : 'h-full grid gap-1 grid-cols-[min(45%,560px)_minmax(0,1fr)]'}
+              className={navigation.isMobile ? 'h-full relative' : 'h-full grid gap-1 grid-cols-[min(45%,560px)_minmax(0,1fr)] @container'}
               {...(navigation.isMobile ? swipe.touchHandlers : {})}
             >
               {/* Column A: ADTMC navigation */}

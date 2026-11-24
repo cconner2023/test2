@@ -56,21 +56,19 @@ export function SymptomGuidelines({
     return (
         <div className="space-y-5">
             {/* Symptom Header Card */}
-            <SectionCard>
-                <div className="px-4 py-3.5 text-primary">
-                    <div className="text-[10pt] font-semibold">
-                        {symptom.text}
-                    </div>
-                    <div className="text-[9pt] text-secondary mt-0.5">
-                        {category.text}
-                    </div>
-                    {symptom.description && (
-                        <div className="text-[9pt] text-secondary leading-relaxed mt-2">
-                            {symptom.description}
-                        </div>
-                    )}
+            <div className="text-primary">
+                <div className="hidden md:block text-[14pt] font-semibold leading-tight mb-1">
+                    {symptom.text}
                 </div>
-            </SectionCard>
+                <div className="text-[9pt] font-semibold text-tertiary uppercase tracking-wider">
+                    {category.text}
+                </div>
+                {symptom.description && (
+                    <div className="text-[10pt] text-secondary leading-relaxed mt-2">
+                        {symptom.description}
+                    </div>
+                )}
+            </div>
 
             {/* General Information section */}
             {genText && genText.length > 0 && (

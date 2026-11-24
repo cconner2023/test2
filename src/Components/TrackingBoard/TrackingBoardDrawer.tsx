@@ -66,7 +66,7 @@ interface TrackingBoardDrawerProps {
  * Check-in: a + in the header (mobile header pill beside the gear; desktop
  * drawer header) opens the check-in surface — a lifted card over the grid pane
  * (desktop) / fit Sheet (mobile), the Admin detail idiom — with the self-rowing
- * BRN pin + comment TextArea (TrackingCheckInFields); Check in joins the header
+ * BRN pin + comment thread and composer (TrackingCheckInFields); Check in joins the header
  * pill once the BRN is valid. Comments are never written from the detail itself.
  * Loaned members get the calendar's Operating As + Filter Cluster panels in the
  * same places as the calendar: the desktop rail, and the settings sheet on mobile.

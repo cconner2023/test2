@@ -6,7 +6,7 @@ import { type ContextMenuItem } from '@/Components/primitives/ContextMenu'
 import { LiftedRowMenu } from '@/Components/primitives/LiftedRowMenu'
 import { PreviewOverlay } from '../PreviewOverlay'
 import { ActionSheet } from '@/Components/primitives/ActionSheet'
-import { PdfPreviewModal } from '../PdfPreviewModal'
+import { PdfPreview } from '@/Components/primitives/PdfPreview'
 import { TextInput, PickerInput } from '@/Components/primitives/FormInputs'
 import { PillButton } from '@/Components/primitives/HeaderPill'
 import type { LocalPropertyItem, LocalPropertyLocation } from '../../Types/PropertyTypes'
@@ -471,12 +471,14 @@ export const ItemActionMenu = forwardRef<ItemActionMenuHandle, ItemActionMenuPro
         zIndex={overlayZ}
       />
 
-      <PdfPreviewModal
+      <PdfPreview
         preview={labelPreview}
         generating={labelExportStatus === 'generating'}
         onDownload={downloadLabels}
         onClose={clearLabelPreview}
+        cardHost={cardHost}
         zIndex={overlayZ}
+        desktopZIndex={70}
       />
 
       {shareToChatPicker}

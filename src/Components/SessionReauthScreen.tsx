@@ -14,7 +14,6 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Lock } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import {
   isPinEnabled,
@@ -33,6 +32,7 @@ import { tryDeviceRestore } from '../lib/sessionRestore'
 import { useAuthStore } from '../stores/useAuthStore'
 import { PinKeypad } from '@/Components/primitives/PinKeypad'
 import { PasswordLockScreen } from './PasswordLockScreen'
+import { AuthBackdrop, AuthHeader } from './AuthChrome'
 import { LoadingSpinner } from '@/Components/primitives/LoadingSpinner'
 
 type Phase =
@@ -175,7 +175,7 @@ export function SessionReauthScreen({ email }: SessionReauthScreenProps) {
 
   if (phase === 'restoring') {
     return (
-      <div className="fixed inset-0 z-30 bg-themewhite flex flex-col items-center justify-center gap-3"
+      <div className="fixed inset-0 z-30 bg-themewhite dark:bg-themewhite3 flex flex-col items-center justify-center gap-3"
            style={{ paddingTop: 'var(--sat)', paddingBottom: 'var(--sab)' }}>
         <LoadingSpinner className="text-themeblue2/50" />
         <p className="text-sm text-tertiary">Restoring session…</p>
@@ -198,28 +198,16 @@ export function SessionReauthScreen({ email }: SessionReauthScreenProps) {
 
   // ── Bio or PIN shell ──────────────────────────────────────────────────────
   return (
-    <div className="fixed inset-0 z-30 bg-themewhite overflow-y-auto select-none"
+    <div className="fixed inset-0 z-30 bg-themewhite dark:bg-themewhite3 overflow-y-auto select-none"
          style={{ paddingTop: 'var(--sat)', paddingBottom: 'var(--sab)' }}>
-      <div className="min-h-full flex flex-col items-center justify-center py-8 px-6">
+      <AuthBackdrop />
+      <div className="relative min-h-full flex flex-col items-center justify-center py-8 px-6">
 
-        {/* Header */}
-        <div className="flex flex-col items-center mb-8">
-          <div className="w-14 h-14 rounded-full bg-themeblue2/10 flex items-center justify-center mb-4">
-            <Lock size={26} className="text-themeblue2" />
-          </div>
-          <h1 className="text-xl font-bold text-primary tracking-wide">ADTMC</h1>
-          <p className="text-sm text-tertiary mt-1 text-center">
-            {phase === 'bio'
-              ? 'Verify your identity to restore your session'
-              : 'Enter your PIN to restore your session'}
-          </p>
-        </div>
-
-        {/* Email */}
-        <div className="mb-4 w-full max-w-[270px]">
-          <span className="text-[10pt] font-medium text-tertiary uppercase tracking-wide">Account</span>
-          <p className="text-sm text-primary mt-0.5 truncate">{email}</p>
-        </div>
+        <AuthHeader
+          className="mb-8 max-w-[270px]"
+          title="Session expired"
+          subtitle={<span className="block truncate">{email}</span>}
+        />
 
         {phase === 'bio' && (
           <div className="w-[270px] flex flex-col items-center gap-4">

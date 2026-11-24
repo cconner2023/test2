@@ -286,9 +286,9 @@ export interface TrackingEditDraft {
   /** New comment appended on save (blank = none). In the Edit form this is the
    *  chat input's unsent text — saved too, so Save never drops typed text. */
   newComment: string
-  /** Edit form only: comments "sent" from the chat input, appended on save in order. */
+  /** Comments "sent" from the chat input (Edit + check-in), appended on save in order. */
   added?: { text: string; attachment?: TrackingComment['attachment'] }[]
-  /** Edit form only: uploaded but unsent attachment. Saved like unsent text, ahead of it. */
+  /** Uploaded but unsent attachment (Edit form + check-in). Saved like unsent text, ahead of it. */
   staged?: TrackingComment['attachment']
 }
 

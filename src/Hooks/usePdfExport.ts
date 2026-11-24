@@ -2,7 +2,7 @@
  * Generic PDF export hook factory.
  *
  * Generates PDF bytes and surfaces them for preview instead of
- * auto-downloading. Callers render a PdfPreviewModal with the
+ * auto-downloading. Callers render a PdfPreview with the
  * returned preview data, letting the user inspect before saving.
  */
 import { useState, useCallback } from 'react'

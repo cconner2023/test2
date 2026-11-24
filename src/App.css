@@ -723,6 +723,19 @@ html {
     animation-play-state: paused;
 }
 
+@keyframes fogDrift {
+    from { transform: translate3d(-4%, 0, 0); }
+    to { transform: translate3d(4%, 0, 0); }
+}
+
+.login-fog-a { animation: fogDrift 38s ease-in-out infinite alternate; }
+.login-fog-b { animation: fogDrift 52s ease-in-out infinite alternate-reverse; }
+.login-fog-c { animation: fogDrift 70s ease-in-out infinite alternate; }
+
+@media (prefers-reduced-motion: reduce) {
+    .login-fog-a, .login-fog-b, .login-fog-c { animation: none; }
+}
+
 /* Desktop grid content transition — triggered by key change on right column */
 @keyframes desktopContentIn {
     from {

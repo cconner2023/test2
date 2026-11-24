@@ -79,7 +79,7 @@ export function RowMoreButton({ onMore }: { onMore: (rect: DOMRect) => void }) {
         const host = (e.currentTarget.closest('[data-list-row]') ?? e.currentTarget) as HTMLElement
         onMore(host.getBoundingClientRect())
       }}
-      className="w-8 h-8 -mr-2 shrink-0 rounded-full flex items-center justify-center text-tertiary hover:bg-primary/10 active:bg-primary/10 cursor-pointer"
+      className="w-8 h-8 -mr-2 shrink-0 rounded-full flex items-center justify-center text-tertiary active:bg-primary/10 cursor-pointer"
     >
       <MoreHorizontal size={18} />
     </span>

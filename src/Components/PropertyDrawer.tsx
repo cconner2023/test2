@@ -19,7 +19,7 @@ import { useFeatureGate } from '../lib/featureGate'
 import { useNavigationStore } from '../stores/useNavigationStore'
 import { useShallow } from 'zustand/react/shallow'
 import { exportPropertyCSV } from '../Utilities/PropertyCSV'
-import { PdfPreviewModal } from './PdfPreviewModal'
+import { PdfPreview } from '@/Components/primitives/PdfPreview'
 import { usePropertyLabelExport } from '../Hooks/usePropertyLabelExport'
 import type { LabelPresetKey } from '../Utilities/PropertyLabelExport'
 import { usePropertyVault } from '../Hooks/usePropertyVault'
@@ -401,11 +401,12 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                 onClose={() => setShowLabelSheet(false)}
             />
 
-            <PdfPreviewModal
+            <PdfPreview
                 preview={labelPreview}
                 generating={labelExportStatus === 'generating'}
                 onDownload={downloadLabels}
                 onClose={clearLabelPreview}
+                desktopZIndex={70}
             />
 
             <ConfirmDialog

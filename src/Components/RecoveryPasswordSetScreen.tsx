@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import { KeyRound, Check, CheckCircle } from 'lucide-react'
+import { Check, X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../stores/useAuthStore'
 import { storePasswordHash } from '../lib/authService'
@@ -7,6 +7,7 @@ import { clearPinPermanentLock, resetLockout } from '../lib/pinService'
 import { PasswordInput } from '@/Components/primitives/FormInputs'
 import { ErrorDisplay } from '@/Components/primitives/ErrorDisplay'
 import { LoadingOverlay } from '@/Components/primitives/LoadingOverlay'
+import { AuthBackdrop, AuthHeader, AUTH_CARD } from './AuthChrome'
 
 /**
  * Password reset for a recovery link opened on a LOCKED browser belonging to the
@@ -61,42 +62,26 @@ export function RecoveryPasswordSetScreen({ email }: { email: string }) {
 
   return (
     <div
-      className="fixed inset-0 z-40 bg-themewhite overflow-y-auto select-none"
+      className="fixed inset-0 z-40 bg-themewhite dark:bg-themewhite3 overflow-y-auto select-none"
       style={{ paddingTop: 'var(--sat)', paddingBottom: 'var(--sab)' }}
     >
-      <div className="min-h-full flex flex-col items-center justify-center py-8 px-6">
+      <AuthBackdrop />
+      <div className="relative min-h-full flex flex-col items-center justify-center py-8 px-6">
         <div className="w-full max-w-sm relative">
           <LoadingOverlay visible={submitting} className="rounded-2xl" />
           {success ? (
-            <div className="flex flex-col items-center">
-              <div className="w-14 h-14 rounded-full bg-themegreen/10 flex items-center justify-center mb-4">
-                <CheckCircle size={28} className="text-themegreen" />
-              </div>
-              <h1 className="text-xl font-bold text-primary">Password updated</h1>
-              <p className="text-sm text-tertiary mt-2 text-center">
-                Unlock this device with your new password.
-              </p>
-            </div>
+            <AuthHeader title="Password updated" subtitle="Unlock this device with your new password." />
           ) : (
             <>
-              <div className="flex flex-col items-center mb-8">
-                <div className="w-14 h-14 rounded-full bg-themeblue2/10 flex items-center justify-center mb-4">
-                  <KeyRound size={26} className="text-themeblue2" />
-                </div>
-                <h1 className="text-xl font-bold text-primary tracking-wide">Set a new password</h1>
-                <p className="text-sm text-tertiary mt-2 text-center">
-                  This device stays locked until you sign back in.
-                </p>
-              </div>
-
-              <div className="mb-3 px-1">
-                <p className="text-[9pt] font-semibold text-secondary tracking-widest uppercase">Account</p>
-                <p className="text-sm text-primary mt-0.5 truncate">{email}</p>
-              </div>
+              <AuthHeader
+                className="mb-8"
+                title="Set a new password"
+                subtitle={<span className="block truncate">{email}</span>}
+              />
 
               <ErrorDisplay message={error} centered />
 
-              <div className="rounded-2xl bg-themewhite2 overflow-hidden">
+              <form onSubmit={e => { e.preventDefault(); handleSubmit() }} className={AUTH_CARD}>
                 <PasswordInput
                   value={password}
                   onChange={setPassword}
@@ -111,18 +96,23 @@ export function RecoveryPasswordSetScreen({ email }: { email: string }) {
                   autoComplete="new-password"
                   hint={confirm.length > 0 && password !== confirm ? 'Passwords do not match' : undefined}
                 />
-              </div>
-
-              {isValid && (
-                <button
-                  onClick={handleSubmit}
-                  disabled={submitting}
-                  className="w-full mt-3 py-3 rounded-2xl bg-themeblue3 text-white text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-40 active:scale-95 transition-all"
-                >
-                  <Check size={16} />
-                  Update password
-                </button>
-              )}
+                <div className={`flex items-center justify-end gap-2 px-3 overflow-hidden transition-all duration-300 ease-out ${isValid ? 'max-h-14 py-2 opacity-100' : 'max-h-0 py-0 opacity-0'}`}>
+                  <button
+                    type="button"
+                    onClick={() => { setPassword(''); setConfirm('') }}
+                    className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
+                  >
+                    <X size={16} />
+                  </button>
+                  <button
+                    type="submit"
+                    aria-label="Update password"
+                    className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center bg-themeblue3 text-white active:scale-95 transition-all"
+                  >
+                    <Check size={16} />
+                  </button>
+                </div>
+              </form>
             </>
           )}
         </div>

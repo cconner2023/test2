@@ -1,4 +1,4 @@
-import { useState, useMemo, type ReactNode } from 'react';
+import { useMemo, type ReactNode } from 'react';
 import { useClusterLabel } from '../../Utilities/clusterLabel';
 import { useSF600Export } from '../../Hooks/useSF600Export';
 import { useDD689Export } from '../../Hooks/useDD689Export';
@@ -11,8 +11,7 @@ import { useNoteShare } from '../../Hooks/useNoteShare';
 import { formatSignature } from '../../Utilities/NoteFormatter';
 import { copyWithHtml } from '../../Utilities/clipboardUtils';
 import { useAuthStore } from '../../stores/useAuthStore';
-import { PdfPreviewModal } from '../PdfPreviewModal';
-import { PatientIdPopover, type PatientIdForm } from '../PatientIdPopover';
+import { NoteExportPane, useNoteExportFlow } from '../NoteExportPane';
 import { formatDob, type PatientIdentification, type SF600Stamp } from '../../Utilities/SF600Export';
 import type { DD689Extras } from '../../Utilities/DD689Export';
 import { formatHistory, type NoteHistory } from '../../Utilities/noteHistory';
@@ -33,7 +32,7 @@ export interface ProviderNoteInputs {
 
 /**
  * Provider note output state, owned by ProviderDrawer: the composed preview, the
- * Finish-menu export rows (SF600 / DD689 / share) and their overlays, mounted once.
+ * Finish-menu export rows (SF600 / DD689 / share) and the export pane.
  */
 export function useProviderNoteOutput({
     hpiNote,
@@ -119,8 +118,6 @@ export function useProviderNoteOutput({
         shareNote({ encodedText: encodedValue, symptomText: 'Provider Note' }, isMobile);
     }
 
-    const [patientGate, setPatientGate] = useState<PatientIdForm | null>(null);
-
     function doExportSF600(patient: PatientIdentification, stamp: SF600Stamp) {
         if (!previewNote) return;
         const nameParts = [profile.lastName, profile.firstName, profile.middleInitial].filter(Boolean).join(' ');
@@ -150,29 +147,26 @@ export function useProviderNoteOutput({
         });
     }
 
+    const exportFlow = useNoteExportFlow({
+        onSF600: doExportSF600,
+        onDD689: handleExportDD689,
+        sf600Preview,
+        dd689Preview,
+        generating: sf600ExportStatus === 'generating' || exportStatus === 'generating',
+        downloadSF600,
+        downloadDD689,
+        clearSF600Preview,
+        clearDD689Preview,
+    });
+
     const exportOptions = noteExportOptions({
-        onExportSF600: () => { if (previewNote) setPatientGate('sf600'); },
-        onExportDD689: () => { if (encodedValue) setPatientGate('dd689'); },
+        onExportSF600: () => { if (previewNote) exportFlow.start('sf600'); },
+        onExportDD689: () => { if (encodedValue) exportFlow.start('dd689'); },
         onShare: handleShare,
     });
 
-    const overlays = (
-        <>
-            <PatientIdPopover
-                isOpen={patientGate !== null}
-                anchorRect={null}
-                form={patientGate ?? undefined}
-                onClose={() => setPatientGate(null)}
-                onConfirm={(patient, extras, stamp) => patientGate === 'dd689' ? handleExportDD689(patient, extras) : doExportSF600(patient, stamp)}
-            />
-            <PdfPreviewModal
-                preview={sf600Preview ?? dd689Preview ?? null}
-                generating={sf600ExportStatus === 'generating' || exportStatus === 'generating'}
-                onDownload={sf600Preview ? downloadSF600 : downloadDD689}
-                onClose={sf600Preview ? clearSF600Preview : clearDD689Preview}
-            />
-        </>
-    );
+    // Host places it: inside the output drawer on desktop, as a Sheet on mobile.
+    const overlays = <NoteExportPane flow={exportFlow} desktopZIndex={45} />;
 
     return { previewNote, exportOptions, overlays };
 }

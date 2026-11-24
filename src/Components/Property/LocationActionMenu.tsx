@@ -2,7 +2,7 @@ import { useState, useCallback, useMemo, forwardRef, useImperativeHandle, type R
 import { Pencil, Package, FolderPlus, Trash2, Layers, Wrench, Route, ClipboardList, QrCode, Rows3, PackageMinus } from 'lucide-react'
 import { type ContextMenuItem } from '@/Components/primitives/ContextMenu'
 import { LiftedRowMenu } from '@/Components/primitives/LiftedRowMenu'
-import { PdfPreviewModal } from '../PdfPreviewModal'
+import { PdfPreview } from '@/Components/primitives/PdfPreview'
 import { PmcsSheet } from './PmcsSheet'
 import type { CardMorphHost } from '@/Components/primitives/OverlayStack'
 import { DispatchSheet } from './DispatchSheet'
@@ -339,22 +339,25 @@ export const LocationActionMenu = forwardRef<LocationActionMenuHandle, LocationA
         cardHost={cardHost}
       />
 
-      {/* DD 1750 packing list — high z so it floats above the detail sheet on mobile. */}
-      <PdfPreviewModal
+      <PdfPreview
         preview={dd1750Preview}
         generating={dd1750Status === 'generating'}
         onDownload={downloadDD1750}
         onClose={clearDD1750Preview}
+        cardHost={cardHost}
         zIndex={1600}
+        desktopZIndex={70}
       />
 
       {/* Data Matrix label sheet for this zone (BCN-ZONE) — print + affix to the container. */}
-      <PdfPreviewModal
+      <PdfPreview
         preview={zoneLabelPreview}
         generating={zoneLabelStatus === 'generating'}
         onDownload={downloadZoneLabels}
         onClose={clearZoneLabelPreview}
+        cardHost={cardHost}
         zIndex={1600}
+        desktopZIndex={70}
       />
     </>
   )

@@ -1,18 +1,16 @@
 import { useState, useEffect, useRef, useCallback, type ReactNode } from 'react'
 import { useClusterLabel } from '../Utilities/clusterLabel'
-import { User, ExternalLink, Save, Check, Download } from 'lucide-react'
+import { User, ExternalLink, Save, Check } from 'lucide-react'
 import { PaneSurface } from '@/Components/primitives/PaneCard'
 import { PillButton } from '@/Components/primitives/HeaderPill'
-import { AnchoredMenu } from '@/Components/primitives/LiftedRowMenu'
-import type { ContextMenuItem } from '@/Components/primitives/ContextMenu'
+import { ActionSheet, type ActionSheetOption } from '@/Components/primitives/ActionSheet'
 import { NoteOutputSections, noteExportOptions } from './NoteOutputSections'
-import { useNavigationStore } from '../stores/useNavigationStore'
+import { useEditInProvider } from '../Hooks/useEditInProvider'
 import { useSavedNotesStore } from '../stores/useSavedNotesStore'
 import { SAVED_NOTES_CAP } from '../lib/savedNotesDb'
 import { emitCopied } from '../lib/copyFeedback'
 import { BarcodeDisplay } from './Barcode'
-import { usePatientIdDraft, type PatientIdForm } from '../Hooks/usePatientIdDraft'
-import { PdfCanvasView } from './PdfCanvasView'
+import { useNoteExportFlow } from './NoteExportPane'
 import type { ImportPreview } from '../Hooks/useNoteImport'
 import type { MedevacRequest } from '../Types/MedevacTypes'
 import { formatDob, type PatientIdentification, type SF600Stamp } from '../Utilities/SF600Export'
@@ -42,8 +40,7 @@ interface ImportedNoteDrawerProps {
  *
  * The export steps are drill-downs of the same surface, not stacked overlays:
  * note → Patient Identification → PDF preview, each with Back. The Finish
- * actions (Save, SF600, DD689, Share, Edit in Provider) hang off the header
- * Check as an AnchoredMenu.
+ * actions hang off the header Check as an ActionSheet.
  */
 export function ImportedNoteDrawer({ preview, onClose, onOpenMedevac, isMobile }: ImportedNoteDrawerProps) {
   // Hold the last preview so content stays put through the close animation.
@@ -56,7 +53,6 @@ export function ImportedNoteDrawer({ preview, onClose, onOpenMedevac, isMobile }
   const { shareNote } = useNoteShare()
   const { exportDD689, exportStatus, dd689Preview, downloadDD689, clearDD689Preview } = useDD689Export()
   const { exportSF600, sf600ExportStatus, sf600Preview, downloadSF600, clearSF600Preview } = useSF600Export()
-  const [patientGate, setPatientGate] = useState<PatientIdForm | null>(null)
   const [authorAvatarSvg, setAuthorAvatarSvg] = useState<ReactNode>(null)
 
   const userId = shown?.userId
@@ -122,7 +118,7 @@ export function ImportedNoteDrawer({ preview, onClose, onOpenMedevac, isMobile }
   const savedNotes = useSavedNotesStore(s => s.notes)
   const saveNote = useSavedNotesStore(s => s.save)
   const isProviderRole = useAuthStore(s => s.isProviderRole)
-  const openProviderNote = useNavigationStore(s => s.openProviderNote)
+  const editInProvider = useEditInProvider()
   const savedIdRef = useRef<string | undefined>(undefined)
   useEffect(() => { savedIdRef.current = undefined }, [preview])
   const parsed = shown?.parsed
@@ -149,20 +145,31 @@ export function ImportedNoteDrawer({ preview, onClose, onOpenMedevac, isMobile }
   }, [shown, saveKind, encoded, saveNote, authUserId])
 
   const [finishOpen, setFinishOpen] = useState(false)
+  const [finishAnchor, setFinishAnchor] = useState<DOMRect | null>(null)
   const finishRef = useRef<HTMLDivElement>(null)
+
+  const exportFlow = useNoteExportFlow({
+    onSF600: handleExportSF600,
+    onDD689: handleExportDD689,
+    sf600Preview,
+    dd689Preview,
+    generating: sf600ExportStatus === 'generating' || exportStatus === 'generating',
+    downloadSF600,
+    downloadDD689,
+    clearSF600Preview,
+    clearDD689Preview,
+  })
 
   // Fresh surface per import: drop any half-finished export step.
   useEffect(() => {
     if (!preview) return
-    setPatientGate(null)
+    exportFlow.reset()
     setFinishOpen(false)
-    clearSF600Preview()
-    clearDD689Preview()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [preview])
 
-  const finishItems = ((): ContextMenuItem[] => {
-    const items: ContextMenuItem[] = []
+  const finishItems = ((): ActionSheetOption[] => {
+    const items: ActionSheetOption[] = []
     if (saveKind) {
       const isUpdate = !!savedIdRef.current && savedNotes.some(n => n.id === savedIdRef.current)
       const label = isUpdate
@@ -173,53 +180,39 @@ export function ImportedNoteDrawer({ preview, onClose, onOpenMedevac, isMobile }
       } })
     }
     items.push(...noteExportOptions({
-      onExportSF600: () => { if (note) setPatientGate('sf600') },
-      onExportDD689: () => { if (encoded) setPatientGate('dd689') },
+      onExportSF600: () => { if (note) exportFlow.start('sf600') },
+      onExportDD689: () => { if (encoded) exportFlow.start('dd689') },
       onShare: handleShare,
-      // Same medic/provider notes My Notes can hold; the drawer re-imports the plaintext.
-      onEditInProvider: isProviderRole && saveKind ? () => {
-        onClose()
-        openProviderNote({ payload: encoded })
+      onEditInProvider: isProviderRole && saveKind ? async () => {
+        await editInProvider(encoded, { beforeOpen: onClose })
       } : undefined,
-    }).map(({ key, label, icon, onAction }) => ({ key, label, icon, onAction })))
+    }))
     return items
   })()
 
   // ── Screens ───────────────────────────────────────────────────────────────
-  const pdfPreview = sf600Preview ?? dd689Preview ?? null
-  const generating = sf600ExportStatus === 'generating' || exportStatus === 'generating'
-  const screen: 'note' | 'patient' | 'pdf' = generating || pdfPreview ? 'pdf' : patientGate ? 'patient' : 'note'
-  const patientForm = usePatientIdDraft(patientGate !== null, patientGate ?? undefined)
-
-  const clearPdf = () => { clearSF600Preview(); clearDD689Preview() }
-  const back = () => { if (screen === 'pdf') clearPdf(); else setPatientGate(null) }
-  const confirmPatient = () => {
-    patientForm.submit((patient, extras, stamp) => patientGate === 'dd689' ? handleExportDD689(patient, extras) : handleExportSF600(patient, stamp))
-    setPatientGate(null)
-  }
-  const savePdf = () => {
-    if (sf600Preview) downloadSF600(); else downloadDD689()
-    clearPdf()
-  }
+  const screen = exportFlow.screen ?? 'note'
+  const back = exportFlow.back
 
   const open = !!preview
   useEscBackout(open && !finishOpen, screen === 'note' ? onClose : back)
 
-  const title = screen === 'pdf'
-    ? pdfPreview?.filename ?? 'PDF'
-    : screen === 'patient' ? 'Patient Identification' : 'Imported Note'
+  const title = screen === 'note' ? 'Imported Note' : exportFlow.title
 
-  const actions = screen === 'pdf'
-    ? (pdfPreview ? <PillButton icon={Download} iconSize={18} accent="info" onClick={savePdf} label="Save" /> : undefined)
-    : screen === 'patient'
-      ? <PillButton icon={Check} iconSize={18} accent="success" onClick={confirmPatient} label={patientForm.isDD689 ? 'Create DD689' : 'Create SF600'} />
-      : (
+  const openFinish = () => {
+    setFinishAnchor(finishRef.current?.getBoundingClientRect() ?? null)
+    setFinishOpen(true)
+  }
+
+  const actions = screen !== 'note'
+    ? exportFlow.actions
+    : (
         <>
           {medevacReq && onOpenMedevac && (
             <PillButton icon={ExternalLink} iconSize={18} onClick={() => onOpenMedevac(medevacReq)} label="Open 9-Line" />
           )}
           <div ref={finishRef} className="flex">
-            <PillButton icon={Check} iconSize={18} accent="success" onClick={() => setFinishOpen(true)} label="Finish" />
+            <PillButton icon={Check} iconSize={18} accent="success" onClick={openFinish} label="Finish" />
           </div>
         </>
       )
@@ -231,7 +224,7 @@ export function ImportedNoteDrawer({ preview, onClose, onOpenMedevac, isMobile }
       title={title}
       onBack={screen === 'note' ? undefined : back}
       actions={actions}
-      loading={screen === 'pdf' && !pdfPreview}
+      loading={exportFlow.loading}
       closeOnEsc={false}
       width={480}
       maxHeight={90}
@@ -268,18 +261,14 @@ export function ImportedNoteDrawer({ preview, onClose, onOpenMedevac, isMobile }
           />
         </div>
       )}
-      {screen === 'patient' && patientForm.body}
-      {screen === 'pdf' && pdfPreview && (
-        <PdfCanvasView bytes={pdfPreview.bytes} scroll={false} className="bg-themewhite" />
-      )}
-      <AnchoredMenu
-        isOpen={finishOpen && screen === 'note'}
-        anchorRef={finishRef}
-        anchorRect={null}
-        align="right"
-        layout="list"
-        items={finishItems}
+      {screen !== 'note' && exportFlow.body}
+      <ActionSheet
+        visible={finishOpen && screen === 'note'}
+        title="Finish note"
+        options={finishItems}
         onClose={() => setFinishOpen(false)}
+        anchorRect={finishAnchor}
+        zIndex={1300}
       />
     </PaneSurface>
   )

@@ -3,6 +3,7 @@ import type { ReactNode, RefObject } from 'react'
 import { Check, Plus, Users } from 'lucide-react'
 import { FooterPill } from '../primitives/FooterPill'
 import { ActionButton } from '../primitives/ActionButton'
+import { PillButton } from '../primitives/HeaderPill'
 import { UserAvatar } from '../Settings/UserAvatar'
 import { useMessagesContext } from '../../Hooks/MessagesContext'
 import { useMessageRoster } from '../../Hooks/useMessageRoster'
@@ -328,25 +329,24 @@ export function useContactPicker({
 
   // Create Group is rendered only once it can fire — no dimmed action button.
   const groupCreatable = !!groupName.trim() && groupMemberIds.size > 0
-  const rightSlot: ReactNode = mode === 'group'
-    ? (groupCreatable || groupCreating) && (
-        <FooterPill side="right">
-          <ActionButton
-            icon={Check}
-            label={groupCreating ? 'Creating…' : 'Create Group'}
-            variant="confirm"
-            onClick={() => void handleCreateGroup()}
-          />
-        </FooterPill>
+  const groupAction: ReactNode = mode === 'group' && (groupCreatable || groupCreating) && (
+        <PillButton
+          icon={Check}
+          iconSize={18}
+          accent="success"
+          label={groupCreating ? 'Creating…' : 'Create Group'}
+          disabled={groupCreating}
+          onClick={() => void handleCreateGroup()}
+        />
       )
-    : rightFooter
 
   const main: StackScreen = {
     title: mode === 'group' ? 'New Group' : title,
     searchPlaceholder: 'Search contacts...',
     ...(mode === 'group' ? { onBack: () => exitGroupMode() } : {}),
     footer,
-    ...(rightSlot ? { rightFooter: rightSlot } : {}),
+    ...(groupAction ? { headerActions: groupAction } : {}),
+    ...(mode === 'contacts' && rightFooter ? { rightFooter } : {}),
     render: (_p: unknown, _nav: StackNav, filter: string) => body(filter),
   }
 

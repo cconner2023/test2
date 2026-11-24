@@ -1,14 +1,14 @@
 import { useMemo, useRef, useState } from 'react'
-import { Plus } from 'lucide-react'
+import { MoreHorizontal, Plus } from 'lucide-react'
 import { useTrackingBoardData } from '../../Hooks/useTrackingBoardData'
 import { useTrackingWrite } from '../../Hooks/useTrackingWrite'
 import { useNavigationStore } from '../../stores/useNavigationStore'
 import { useAuthStore } from '../../stores/useAuthStore'
 import {
-  boardEntries, sinceAt, moveData, transitData, placeLabel, destinationLabel,
+  boardEntries, sinceAt, isComplete, moveData, transitData, placeLabel, destinationLabel,
   type TrackingEntry,
 } from '../TrackingBoard/trackingModel'
-import { boardGroups, tintFor, buildTrackingMenuItems } from '../TrackingBoard/TrackingBoardPanel'
+import { tintFor, buildTrackingMenuItems } from '../TrackingBoard/TrackingBoardPanel'
 import { menuPressHandlers, type MenuPressState } from '../Calendar/menuPress'
 import { LiftedRowMenu } from '@/Components/primitives/LiftedRowMenu'
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
@@ -16,12 +16,7 @@ import { ActionPill } from '@/Components/primitives/ActionPill'
 import { ActionButton } from '@/Components/primitives/ActionButton'
 import { EmptyState } from '@/Components/primitives/EmptyState'
 
-const LANE_LIMIT = 3
-// ~3.5 columns fill the widget; the rest scroll in on x. The half column is
-// the affordance that more stations sit off to the right.
-const VISIBLE_COLS = 3.5
-const COL_MIN = 84
-const GAP = 2
+const ROW_LIMIT = 5
 
 const CLONE_W = 240
 const CLONE_H = 52
@@ -34,11 +29,16 @@ function cloneAnchor(r: DOMRect): DOMRect {
   return { x: left, y: top, left, top, width: CLONE_W, height: CLONE_H, right: left + CLONE_W, bottom: top + CLONE_H, toJSON() {} } as DOMRect
 }
 
+function stamp(at: number, todayStart: number): string {
+  const d = new Date(at)
+  return at >= todayStart
+    ? d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
+    : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
 /**
- * Mission overview: Tracking Board at a glance, laid out like the week view.
- * One column per board group (Pending → own stations → other clusters →
- * Complete), then up to LANE_LIMIT BRN lanes
- * (newest at the place first). Tap a BRN = open it in the Tracking Board
+ * Mission overview: Tracking Board at a glance. One stack, newest activity
+ * first: every open BRN plus those completed today. Tap a BRN = open it in the
  * drawer; long-press / right-click = the board's card menu (Open, Edit, Move,
  * Send, Delete). Open / Edit deep-link into the drawer; moves write in place.
  * BRNs only, never comments: same on-device data the board already shows.
@@ -55,27 +55,21 @@ export function TrackingWidget() {
   const me = [ownRank, ownLast].filter(Boolean).join(' ') || 'Member'
   const pressRef = useRef<MenuPressState | null>(null)
   const [menu, setMenu] = useState<{ entry: TrackingEntry; rect: DOMRect } | null>(null)
+  const [ellipsisMenu, setEllipsisMenu] = useState<{ entry: TrackingEntry; rect: DOMRect } | null>(null)
   const [pendingDelete, setPendingDelete] = useState<TrackingEntry | null>(null)
   // Expiry clock, read once per mount (the home screen remounts often).
   const [now] = useState(Date.now)
 
-  const columns = useMemo(() => {
-    const board = boardEntries(events, net, viewerIds, now, originFilter)
-    return boardGroups(net, viewerId).map(g => ({
-      ...g,
-      rows: board.filter(g.match).sort((a, b) => sinceAt(b) - sinceAt(a)),
-    }))
-  }, [events, net, viewerId, viewerIds, originFilter, now])
+  const todayStart = useMemo(() => new Date(now).setHours(0, 0, 0, 0), [now])
+  const rows = useMemo(() =>
+    boardEntries(events, net, viewerIds, now, originFilter)
+      .filter(e => !isComplete(e) || sinceAt(e) >= todayStart)
+      .sort((a, b) => sinceAt(b) - sinceAt(a)),
+  [events, net, viewerIds, originFilter, now, todayStart])
 
-  const total = columns.reduce((n, c) => n + c.rows.length, 0)
-  const shown = columns.reduce((n, c) => n + Math.min(c.rows.length, LANE_LIMIT), 0)
-  const extra = total - shown
-  const laneCount = Math.min(LANE_LIMIT, Math.max(0, ...columns.map(c => c.rows.length)))
-  // cqw = the scroller's width (containerType below). Few columns stretch to
-  // fill via 1fr; many keep the fixed width and overflow.
-  const colW = `max(${COL_MIN}px, calc((100cqw - ${GAP * 3}px) / ${VISIBLE_COLS}))`
-  const grid = { gridTemplateColumns: `repeat(${columns.length}, minmax(${colW}, 1fr))`, columnGap: GAP }
-  const trackWidth = `max(100%, calc(${columns.length} * ${colW} + ${(columns.length - 1) * GAP}px))`
+  const total = rows.length
+  const shown = rows.slice(0, ROW_LIMIT)
+  const extra = total - shown.length
   const action = { icon: Plus, label: 'Check in', onClick: openTrackingCheckIn }
 
   const menuItems = (e: TrackingEntry) => buildTrackingMenuItems(e, {
@@ -93,46 +87,35 @@ export function TrackingWidget() {
   }
 
   return (
-    <div className="px-3 relative">
-      <div className="overflow-x-auto" style={{ containerType: 'inline-size' }}>
-        <div style={{ width: trackWidth }}>
-          <div className="grid mb-0.5" style={grid}>
-            {columns.map(c => (
-              <div key={c.key} className="h-8 flex items-center justify-center min-w-0">
-                <span className="text-[9pt] font-semibold uppercase text-secondary truncate">{c.label}</span>
-              </div>
-            ))}
+    <div className="relative">
+      <div className="divide-y divide-themeblue3/8">
+        {shown.map(e => (
+          <div key={e.id} className="flex items-center">
+            <button
+              type="button"
+              {...menuPressHandlers(rect => setMenu({ entry: e, rect: cloneAnchor(rect) }), pressRef, { onTap: () => openTrackingEntry(e.id) })}
+              className="flex-1 min-w-0 flex items-center gap-3 px-3 py-2.5 text-left text-[10pt] text-primary active:bg-themeblue2/5"
+            >
+              <span className="truncate">{e.transit ? '→ ' : ''}{e.brnLabel}</span>
+              <span className="truncate">{e.transit ? destinationLabel(net, e.transit.to) : placeLabel(net, e)}</span>
+              <span className="shrink-0 tabular-nums">{stamp(sinceAt(e), todayStart)}</span>
+            </button>
+            <button
+              type="button"
+              onClick={(ev) => setEllipsisMenu({ entry: e, rect: ev.currentTarget.getBoundingClientRect() })}
+              aria-label="BRN actions"
+              className="w-7 h-7 mr-2 shrink-0 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all"
+            >
+              <MoreHorizontal size={15} />
+            </button>
           </div>
-          <div className="border-t border-themeblue3/10" />
-          <div className="flex flex-col gap-0.5">
-            {Array.from({ length: laneCount }, (_, li) => (
-              <div key={li} className="grid" style={grid}>
-                {columns.map(c => {
-                  const e = c.rows[li]
-                  if (!e) return <div key={c.key} />
-                  return (
-                    <button
-                      key={c.key}
-                      type="button"
-                      {...menuPressHandlers(rect => setMenu({ entry: e, rect: cloneAnchor(rect) }), pressRef, { onTap: () => openTrackingEntry(e.id) })}
-                      className={`min-w-0 h-10 flex items-center px-1.5 rounded text-left overflow-hidden active:opacity-60 ${tintFor(e).shell}`}
-                    >
-                      <span className="block min-w-0 text-[9pt] font-mono text-primary truncate whitespace-nowrap leading-tight">
-                        {e.transit ? '→ ' : ''}{e.brnLabel}
-                      </span>
-                    </button>
-                  )
-                })}
-              </div>
-            ))}
-          </div>
-        </div>
+        ))}
       </div>
       {extra > 0 && (
         <button
           type="button"
           onClick={open}
-          className="h-5 mt-0.5 flex items-center text-[9pt] font-medium text-secondary text-left px-1 active:text-themeblue1"
+          className="w-full text-[9pt] font-medium text-secondary text-left px-3 py-1.5 border-t border-themeblue3/8 active:text-themeblue1"
         >
           +{extra} more
         </button>
@@ -154,6 +137,14 @@ export function TrackingWidget() {
         )}
         items={menu ? menuItems(menu.entry) : []}
         onClose={() => setMenu(null)}
+        layout="list"
+      />
+      <LiftedRowMenu
+        isOpen={!!ellipsisMenu}
+        anchorRect={ellipsisMenu?.rect ?? null}
+        items={ellipsisMenu ? menuItems(ellipsisMenu.entry) : []}
+        onClose={() => setEllipsisMenu(null)}
+        align="right"
         layout="list"
       />
       <ConfirmDialog

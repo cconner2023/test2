@@ -30,12 +30,9 @@ interface PdfCanvasViewProps {
  * using the already-bundled pdfjs-dist. Replaces the native `<object data=…pdf>`
  * embed, which the build CSP (`object-src 'none'`) blocked on every deployed
  * surface AND which iOS Safari won't inline-render regardless. Owns its own
- * loading (HUD) and error (PdfPreviewFallback) states. Shared by the three PDF
- * preview hosts: PdfPreviewModal, Da2062Preview, Da2062PdfView.
- *
- * Layout: by default the root is a `overflow-y-auto` scroll wrapper for bounded
- * body content (Da2062PdfView fills h-full). Hosts that already scroll
- * (PreviewOverlay) pass scroll={false} so the overlay's scroller owns the wheel.
+ * loading (HUD) and error (PdfPreviewFallback) states. Rendered through
+ * primitives/PdfPreview (PdfPreviewBody), which passes scroll={false} so the
+ * host surface's scroller owns the wheel.
  */
 export function PdfCanvasView({ bytes, className = '', scroll = true }: PdfCanvasViewProps) {
   const hostRef = useRef<HTMLDivElement>(null)

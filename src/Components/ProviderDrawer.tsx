@@ -966,7 +966,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
           onClose={() => setFinishOpen(false)}
           anchorRect={finishAnchor}
         />
-        {outputOverlays}
+        {isMobile && outputOverlays}
 
         {/* Note output — portaled out of this panel so it can push it. */}
         {!isMobile && drawerRoot && createPortal(
@@ -997,6 +997,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
                 handleNext={handleDone}
                 isMobile={false}
               />
+              {outputOverlays}
             </div>
           </BaseDrawer>,
           drawerRoot,

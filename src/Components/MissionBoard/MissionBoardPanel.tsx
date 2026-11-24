@@ -15,6 +15,7 @@ import { toDateKey, eventFallsOnDate, formatShortDayLabel, isEventEditable, isTe
 import { useCalendarWrite } from '../../Hooks/useCalendarWrite'
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
 import type { OverviewWidgetId } from '../../Data/User'
+import { OVERVIEW_WIDGET_META } from '../../Data/User'
 import { GESTURE_THRESHOLDS } from '../../Utilities/GestureUtils'
 import { useMessagingStore } from '../../stores/useMessagingStore'
 import { useClinicMedics } from '../../Hooks/useClinicMedics'
@@ -179,6 +180,7 @@ function MessagesWidget({ action }: { action: WidgetActionDescriptor | null }) {
   const { currentAvatar } = useProfileAvatar(localUserId ?? undefined)
   const [liftedMenu, setLiftedMenu] = useState<{ rect: DOMRect; row: ReactNode; items: ContextMenuItem[] } | null>(null)
   const closeMenu = useCallback(() => setLiftedMenu(null), [])
+  const [ellipsisMenu, setEllipsisMenu] = useState<{ rect: DOMRect; items: ContextMenuItem[] } | null>(null)
   const [pendingDeleteKey, setPendingDeleteKey] = useState<string | null>(null)
 
   const pinnedKeys = useMemo(() => new Set(pinnedKeysArr), [pinnedKeysArr])
@@ -261,13 +263,24 @@ function MessagesWidget({ action }: { action: WidgetActionDescriptor | null }) {
           { key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => setPendingDeleteKey(entry.key) },
         ]
         return (
-          <ConvRow
-            key={entry.key}
-            onTap={() => openConversation(entry)}
-            onOpenMenu={(rect) => setLiftedMenu({ rect, row: content, items })}
-          >
-            {content}
-          </ConvRow>
+          <div key={entry.key} className="flex items-center">
+            <div className="flex-1 min-w-0">
+              <ConvRow
+                onTap={() => openConversation(entry)}
+                onOpenMenu={(rect) => setLiftedMenu({ rect, row: content, items })}
+              >
+                {content}
+              </ConvRow>
+            </div>
+            <button
+              type="button"
+              onClick={(e) => setEllipsisMenu({ items, rect: e.currentTarget.getBoundingClientRect() })}
+              aria-label="Conversation actions"
+              className="w-7 h-7 mr-2 shrink-0 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all"
+            >
+              <MoreHorizontal size={15} />
+            </button>
+          </div>
         )
       })}
       <LiftedRowMenu
@@ -276,6 +289,14 @@ function MessagesWidget({ action }: { action: WidgetActionDescriptor | null }) {
         row={liftedMenu?.row}
         items={liftedMenu?.items ?? []}
         onClose={closeMenu}
+        layout="list"
+      />
+      <LiftedRowMenu
+        isOpen={!!ellipsisMenu}
+        anchorRect={ellipsisMenu?.rect ?? null}
+        items={ellipsisMenu?.items ?? []}
+        onClose={() => setEllipsisMenu(null)}
+        align="right"
         layout="list"
       />
       <ConfirmDialog
@@ -539,7 +560,7 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
       // where the gate is off even if a stored profile still lists it.
       .filter(id => id !== 'property' || showPropertyWidget)
       .filter(id => id !== 'tracking' || showTrackingWidget)
-  ))
+  )).sort((a, b) => (b === 'week-view' ? 1 : 0) - (a === 'week-view' ? 1 : 0))
 
   const renderActionOverlay = (id: OverviewWidgetId) => {
     const action = widgetAction(id)
@@ -555,7 +576,7 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
     switch (id) {
       case 'map-overlay':
         return (
-          <div key="map-overlay" className="h-[120px] p-1.5 relative">
+          <div key="map-overlay" className="h-full min-h-[120px] p-1.5 relative">
             <div className="w-full h-full rounded-lg overflow-hidden">
               <MissionMapCard
                 overlayFeatures={missionOverlayFeatures}
@@ -713,8 +734,14 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
     }
   }
 
+  const tileHeader = (id: OverviewWidgetId) => (
+    <div className="flex items-center h-[34px] px-3 border-b border-themeblue3/8">
+      <span className="text-[9pt] font-semibold text-primary uppercase tracking-wider">{OVERVIEW_WIDGET_META[id].label}</span>
+    </div>
+  )
+
   const dateNavRow = (
-    <div className="flex items-center gap-0.5 px-2 py-1.5 border-b border-themeblue3/8">
+    <div className="flex items-center gap-0.5 h-[34px] px-2 border-b border-themeblue3/8">
       <button className="p-1 rounded active:bg-themeblue2/10 text-tertiary" onClick={() => navigate(-1)}>
         <ChevronLeft size={13} />
       </button>
@@ -746,25 +773,24 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
   }
 
   return (
-    <SectionCard>
+    <div className="w-full max-w-5xl mx-auto">
       {widgets.length === 0 ? (
-        <div className="flex items-center justify-center h-[80px]">
-          <span className="text-[10pt] text-secondary">No widgets selected</span>
-        </div>
+        <SectionCard>
+          <div className="flex items-center justify-center h-[80px]">
+            <span className="text-[10pt] text-secondary">No widgets selected</span>
+          </div>
+        </SectionCard>
       ) : (
-        <>
-          {/* Date nav is the panel's permanent header — riding above EVERY first
-              widget (calendar or not) so the first widget's overlay action pill
-              has a bar to sit on instead of being clipped by the card's overflow-hidden. */}
-          {dateNavRow}
-          <div className="divide-y divide-themeblue3/8">
-            {widgets.map(id => (
-              <div key={id}>
+        <div className="grid grid-cols-2 gap-2">
+          {widgets.map(id => (
+            <SectionCard key={id} className={`flex flex-col ${id === 'week-view' ? 'col-span-2' : ''}`}>
+              {id === 'week-view' ? dateNavRow : tileHeader(id)}
+              <div className="flex-1 min-h-0">
                 {renderWidget(id)}
               </div>
-            ))}
-          </div>
-        </>
+            </SectionCard>
+          ))}
+        </div>
       )}
 
       {eventMenu && (() => {
@@ -810,6 +836,6 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
       {!standalone && (
         <div className="mt-2 border-t border-themeblue3/8" />
       )}
-    </SectionCard>
+    </div>
   )
 }

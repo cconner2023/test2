@@ -16,3 +16,20 @@ export function useIsMobile(): boolean {
   return isMobile
 }
 
+
+/** True when the primary pointer is touch. */
+export function useIsTouch(): boolean {
+  const query = '(pointer: coarse)'
+  const [isTouch, setIsTouch] = useState(() =>
+    typeof window !== 'undefined' && window.matchMedia(query).matches
+  )
+
+  useEffect(() => {
+    const mql = window.matchMedia(query)
+    const handler = (e: MediaQueryListEvent) => setIsTouch(e.matches)
+    mql.addEventListener('change', handler)
+    return () => mql.removeEventListener('change', handler)
+  }, [])
+
+  return isTouch
+}

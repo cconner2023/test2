@@ -490,22 +490,37 @@ export class AlgorithmTrace extends Component<AlgorithmTraceProps> {
         const glowC = red ? DISPO['CAT I'].c : ACCENT;
         const gut = Math.max(8, Math.min(a.x, W - a.x - a.w));
 
-        let side: number, sy: number;
-        if (ctrl) {
-            const b = this.box(ctrl);
+        const tight = gut < 24;
+        let side: number, sx: number, sy: number;
+        if (tight) {
+            const b = ctrl ? this.box(ctrl) : { x: a.x, y: a.y, w: a.w, h: a.h };
             const bc = b.x + b.w / 2, ac = a.x + a.w / 2;
             side = Math.abs(bc - ac) < 4 ? (r() < .5 ? -1 : 1) : (bc < ac ? -1 : 1);
-            sy = b.y + b.h / 2;
+            const outer = side < 0 ? b.x : b.x + b.w;
+            sx = Math.min(a.x + a.w - 20, Math.max(a.x + 20, outer + (bc - outer) * r()));
+            sy = a.y + a.h;
         } else {
-            side = r() < .5 ? -1 : 1;
-            sy = a.y + a.h - Math.min(20, a.h / 2);
+            if (ctrl) {
+                const b = this.box(ctrl);
+                const bc = b.x + b.w / 2, ac = a.x + a.w / 2;
+                side = Math.abs(bc - ac) < 4 ? (r() < .5 ? -1 : 1) : (bc < ac ? -1 : 1);
+                sy = b.y + b.h / 2;
+            } else {
+                side = r() < .5 ? -1 : 1;
+                sy = a.y + a.h - Math.min(20, a.h / 2);
+            }
+            sx = side < 0 ? a.x : a.x + a.w;
         }
-        const sx = side < 0 ? a.x : a.x + a.w;
         const gapTop = a.y + a.h, gapBot = Bb.y, gh = gapBot - gapTop;
         const ex = Bb.x + Bb.w * R(r, .18, .82);
         const end: Pt = [ex, Bb.y];
         let d: string;
-        if (r() < .5) {
+        if (tight) {
+            const ly = R(r, gapTop + gh * .3, gapBot - gh * .3);
+            d = Math.abs(ex - sx) < 24
+                ? `M${sx},${sy} C${sx},${sy + gh * .5} ${ex},${Bb.y - gh * .5} ${ex},${Bb.y}`
+                : roundPath([[sx, sy], [sx, ly], [ex, ly], [ex, Bb.y]], Math.min(R(r, 10, 18), gh * .3));
+        } else if (r() < .5) {
             const ox = sx + side * R(r, gut * .45, gut * .8), k2 = R(r, gh * .35, gh * .7);
             d = `M${sx},${sy} L${ox - side * 6},${sy} Q${ox},${sy} ${ox},${sy + 6} C${ox},${gapTop + gh * R(r, .2, .45)} ${ex},${Bb.y - k2} ${ex},${Bb.y}`;
         } else {

@@ -8,7 +8,8 @@ import { StackNavContext } from '@/Components/stackNav'
 import { PreviewOverlay } from '../PreviewOverlay'
 import { ToggleSwitch } from '../Settings/ToggleSwitch'
 import { SignaturePad } from '@/Components/primitives/SignaturePad'
-import { Da2062Preview } from './Da2062Preview'
+import { PdfPreview } from '@/Components/primitives/PdfPreview'
+import type { CardMorphHost } from '@/Components/primitives/OverlayStack'
 import { usePropertyStore } from '../../stores/usePropertyStore'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { useDA2062Export } from '../../Hooks/useDA2062Export'
@@ -29,6 +30,8 @@ interface SignOutFormProps {
   onClose: () => void
   /** Reports save-in-flight so the host surface can gate with the HUD loader. */
   onSavingChange?: (saving: boolean) => void
+  /** Host card/sheet the 2062 preview morphs into. */
+  cardHost?: CardMorphHost
 }
 
 /**
@@ -51,7 +54,7 @@ interface SignOutFormProps {
  * container.
  * State resets on unmount, so closing the host surface clears the form.
  */
-export const SignOutForm = forwardRef<SignOutFormHandle, SignOutFormProps>(function SignOutForm({ onClose, onSavingChange }, ref) {
+export const SignOutForm = forwardRef<SignOutFormHandle, SignOutFormProps>(function SignOutForm({ onClose, onSavingChange, cardHost }, ref) {
   const store = usePropertyStore(
     useShallow((s) => ({
       items: s.items,
@@ -324,7 +327,9 @@ export const SignOutForm = forwardRef<SignOutFormHandle, SignOutFormProps>(funct
         )}
       />
 
-      <Da2062Preview
+      <PdfPreview
+        title="DA 2062"
+        cardHost={cardHost}
         preview={da2062Preview}
         generating={da2062Status === 'generating'}
         onDownload={downloadDA2062}

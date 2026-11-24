@@ -11,7 +11,7 @@ import { useAuthStore } from '../../stores/useAuthStore'
 import { useShallow } from 'zustand/react/shallow'
 import { PropertyLocationTree } from './PropertyLocationTree'
 import { CustodyPanel, type PendingTurnIn } from './CustodyPanel'
-import { Da2062PdfView } from './Da2062PdfView'
+import { PdfPreviewBody, PdfSaveAction } from '@/Components/primitives/PdfPreview'
 import { ItemScanner } from './ItemScanner'
 import { useHandReceipts, type ReceiptItem } from '../../Hooks/useHandReceipts'
 import { buildReprint2062Params, useHandReceiptActions } from '../../Hooks/useHandReceiptActions'
@@ -300,10 +300,7 @@ export const PropertyPanel = memo(function PropertyPanel({
   const { pendingDelete: pendingDeleteReceipt, setPendingDelete: setPendingDeleteReceipt, confirmDelete: confirmDeleteReceipt } =
     useHandReceiptActions({ clinicId: store.clinicId, itemsById: receiptItemsById, membersById: receiptMembersById, refetch: refetchReceipts })
 
-  // Reprint a hand receipt's DA 2062 INTO this panel's object-view surface (right
-  // pane desktop / detail sheet mobile) — CustodyPanel is MAIN-panel content, so its
-  // 2062 opens here as a detail-card/sheet, NOT a nested overlay. (Contrast SignOutForm,
-  // which is itself hosted in the pane/sheet and so uses the nested Da2062Preview.)
+  // Reprint a hand receipt's DA 2062 into this panel's card (desktop) / sheet (mobile).
   const { exportDA2062, da2062Preview, downloadDA2062, clearDA2062Preview } = useDA2062Export()
   const handleReprint = useCallback(
     (r: HandReceipt) => { void exportDA2062(buildReprint2062Params(r, receiptItemsById, receiptMembersById)) },
@@ -1285,7 +1282,7 @@ export const PropertyPanel = memo(function PropertyPanel({
         onSavingChange={setFormSaving}
       />
     ) : signOutOpen ? (
-      <SignOutForm ref={signOutFormRef} onClose={() => setSignOutOpen(false)} onSavingChange={setFormSaving} />
+      <SignOutForm ref={signOutFormRef} onClose={() => setSignOutOpen(false)} onSavingChange={setFormSaving} cardHost={isMobile ? sheetHost : cardHost} />
     ) : mobileForm?.kind === 'item' ? (
       <PropertyItemForm
         ref={itemFormRef}
@@ -1387,7 +1384,7 @@ export const PropertyPanel = memo(function PropertyPanel({
       title: 'New DA 2062',
       onClose: () => setSignOutOpen(false),
       actions: <PillButton icon={Check} iconSize={18} accent="success" onClick={() => signOutFormRef.current?.submit()} label="Sign out" />,
-      body: <SignOutForm ref={signOutFormRef} onClose={() => setSignOutOpen(false)} onSavingChange={setFormSaving} />,
+      body: <SignOutForm ref={signOutFormRef} onClose={() => setSignOutOpen(false)} onSavingChange={setFormSaving} cardHost={isMobile ? sheetHost : cardHost} />,
     } : selectedReceipt ? {
       // DA 2062 hand receipt — opened from a Custody-roster card. Editing: X cancels
       // the edit back to the receipt; Save persists.
@@ -1529,13 +1526,8 @@ export const PropertyPanel = memo(function PropertyPanel({
       key: 'reprint',
       title: da2062Preview.filename,
       onClose: clearDA2062Preview,
-      actions: <PillButton icon={Download} iconSize={18} accent="info" onClick={saveReprint} label="Save" />,
-      // The PDF view fills a bounded parent, and the card's height is content-driven.
-      body: (
-        <div className="h-[60vh] max-h-[480px]">
-          <Da2062PdfView preview={da2062Preview} />
-        </div>
-      ),
+      actions: <PdfSaveAction preview={da2062Preview} onSave={saveReprint} />,
+      body: <PdfPreviewBody preview={da2062Preview} />,
     } : authorizedOpen ? {
       key: 'authorized',
       ...(authForm || authView || authImport ? {
@@ -1605,7 +1597,7 @@ export const PropertyPanel = memo(function PropertyPanel({
       actions: <PillButton icon={Download} iconSize={18} onClick={() => shortageRef.current?.exportAnnex()} label="DA 2062 shortage annex" />,
       body: (
         <div className="px-4 py-4 pb-8">
-          <PropertyShortagePanel ref={shortageRef} onClose={() => setShortageOpen(false)} stagedTurnInIds={turnInItemIds} onLocate={handleSelectItem} />
+          <PropertyShortagePanel ref={shortageRef} onClose={() => setShortageOpen(false)} stagedTurnInIds={turnInItemIds} onLocate={handleSelectItem} cardHost={isMobile ? sheetHost : cardHost} />
         </div>
       ),
     } : importOpen ? {
@@ -2120,7 +2112,7 @@ export const PropertyPanel = memo(function PropertyPanel({
           ) : da2062Editing ? (
             <PillButton icon={Check} iconSize={18} accent="success" onClick={() => da2062EditorRef.current?.submit()} label="Save" />
           ) : da2062Preview ? (
-            <PillButton icon={Download} iconSize={18} accent="info" onClick={saveReprint} label="Save" />
+            <PdfSaveAction preview={da2062Preview} onSave={saveReprint} />
           ) : shortageOpen ? (
             <PillButton icon={Download} iconSize={18} onClick={() => shortageRef.current?.exportAnnex()} label="DA 2062 shortage annex" />
           ) : signOutOpen ? (
@@ -2191,9 +2183,7 @@ export const PropertyPanel = memo(function PropertyPanel({
             )}
           </>
         ) : da2062Preview ? (
-          <div className="h-[70vh]">
-            <Da2062PdfView preview={da2062Preview} />
-          </div>
+          <PdfPreviewBody preview={da2062Preview} />
         ) : importOpen ? (
           // PropertyCSVImport is host-padded (desktop pane wraps it px-4 py-4 pb-8) —
           // the mobile sheet must supply the same so its rows/summary don't hug the edges.
@@ -2201,7 +2191,7 @@ export const PropertyPanel = memo(function PropertyPanel({
             <PropertyCSVImport ref={csvImportRef} bulk={importBulk} defaultLocationId={importBulkLocationId} editItems={importEditItems ?? undefined} onReadyChange={setCsvImportReady} onInPreviewChange={setCsvImportInPreview} onClose={() => setImportOpen(false)} />
           </div>
         ) : shortageOpen ? (
-          <PropertyShortagePanel ref={shortageRef} onClose={() => setShortageOpen(false)} stagedTurnInIds={turnInItemIds} onLocate={handleSelectItem} />
+          <PropertyShortagePanel ref={shortageRef} onClose={() => setShortageOpen(false)} stagedTurnInIds={turnInItemIds} onLocate={handleSelectItem} cardHost={isMobile ? sheetHost : cardHost} />
         ) : authorizedOpen ? (
           authForm ? (
             formBody

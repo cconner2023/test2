@@ -17,7 +17,7 @@ import { useMessagingStore } from '../stores/useMessagingStore'
 import { useAuth } from '../Hooks/useAuth'
 import { prewarmMessagingSettings } from '../lib/messagingSettingsWarm'
 import { useUserProfile } from '../Hooks/useUserProfile'
-import { useIsMobile } from '../Hooks/useIsMobile'
+import { useIsMobile, useIsTouch } from '../Hooks/useIsMobile'
 import { useCallActions } from '../Hooks/CallContext'
 import { useSwipeBack } from '../Hooks/useSwipeBack'
 import type { ClinicMedic } from '../Types/SupervisorTestTypes'
@@ -80,6 +80,7 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
     )
     const panelRef = useRef<MessagesPanelHandle>(null)
     const isMobile = useIsMobile()
+    const isTouch = useIsTouch()
     const callActions = useCallActions()
     // Apply deep-link when drawer opens
     useMemo(() => {
@@ -274,7 +275,7 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
     const settingsContent = (
         <div className="px-5 py-4 space-y-6">
             <MessagingOncallSettings />
-            <SwipeActionsSection />
+            {isTouch && <SwipeActionsSection />}
             <IncomingCallsSection />
             <VoicemailGreetingSection />
         </div>

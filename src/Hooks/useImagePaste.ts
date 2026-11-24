@@ -14,12 +14,19 @@ export function useImagePaste(enabled: boolean, onImage: (file: File) => void) {
     if (!enabled) return
 
     const handlePaste = (e: ClipboardEvent) => {
+      if (e.defaultPrevented) return
       const items = e.clipboardData?.items
 
       // ── Synchronous path: clipboardData.items (works on desktop browsers) ──
       if (items?.length) {
+        const copied = Array.from(e.clipboardData?.files ?? []).find(f => f.type.startsWith('image/'))
+        if (copied) {
+          e.preventDefault()
+          onImage(copied)
+          return
+        }
         for (const item of Array.from(items)) {
-          if (item.type.startsWith('image/')) {
+          if (item.kind === 'file' && item.type.startsWith('image/')) {
             e.preventDefault()
             const file = item.getAsFile()
             if (file) onImage(file)

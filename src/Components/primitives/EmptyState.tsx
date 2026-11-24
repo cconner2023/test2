@@ -74,13 +74,13 @@ export const EmptyState = ({
         }
 
         // Variant A (drawer; overlay falls through for now): a full-width dashed
-        // add-row — icon only, ghosted, lifting to full opacity on hover. No card.
+        // add-row — icon only, accent, text-primary on hover/press. No card.
         return (
             <button
                 ref={anchorRef}
                 onClick={() => anchorRef.current && action.onClick(anchorRef.current)}
                 aria-label={action.label}
-                className={`flex items-center justify-center gap-1.5 w-full py-3 rounded-2xl border border-dashed border-themeblue2/25 text-themeblue2 text-[10pt] font-medium opacity-50 hover:opacity-100 hover:bg-themeblue2/5 active:scale-[0.98] transition-all ${className}`}
+                className={`flex items-center justify-center gap-1.5 w-full py-3 rounded-2xl border border-dashed border-themeblue2 text-themeblue2 text-[10pt] font-medium hover:text-primary hover:border-primary hover:bg-themeblue2/5 active:text-primary active:border-primary active:scale-[0.98] transition-all ${className}`}
             >
                 <Glyph className="w-4 h-4" />
             </button>

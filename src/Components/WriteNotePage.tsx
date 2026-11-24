@@ -12,13 +12,11 @@ import { useAlgorithmMetrics } from '../Hooks/useAlgorithmMetrics';
 import { useMergedNoteContent } from '../Hooks/useMergedNoteContent';
 import { X, Plus, Check, RotateCcw, ChevronRight, ClipboardList, FileText, Save, GraduationCap } from 'lucide-react';
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog';
-import { PdfPreviewModal } from './PdfPreviewModal';
-import { PatientIdPopover, type PatientIdForm } from './PatientIdPopover';
+import { NoteExportPane, useNoteExportFlow } from './NoteExportPane';
 import { BottomIsland } from '@/Components/primitives/BottomIsland';
 import { AddFab } from '@/Components/primitives/AddFab';
 import { NoteOutputSections, noteExportOptions } from './NoteOutputSections';
-import { isEncryptedBarcode, decryptBarcode } from '../Utilities/NoteCodec';
-import { emitErrorToast } from '../lib/errorFeedback';
+import { useEditInProvider } from '../Hooks/useEditInProvider';
 import { useAuthStore } from '../stores/useAuthStore';
 import { EmptyState } from '@/Components/primitives/EmptyState';
 import { ActionButton } from '@/Components/primitives/ActionButton';
@@ -114,7 +112,7 @@ export const WriteNotePage = ({
     const savedNotes = useSavedNotesStore(s => s.notes);
     const saveNote = useSavedNotesStore(s => s.save);
     const isProviderRole = useAuthStore(s => s.isProviderRole);
-    const openProviderNote = useNavigationStore(s => s.openProviderNote);
+    const editInProvider = useEditInProvider();
     // My Notes entry this session writes to — the reopened one, or the first save.
     const savedIdRef = useRef(restore?.savedNoteId);
     const { orderTags, instructionTags, orderSets } = useMergedNoteContent();
@@ -122,7 +120,6 @@ export const WriteNotePage = ({
     const [viewMode, setViewMode] = useState<'preview' | 'fullnote'>(restore ? 'fullnote' : 'preview');
     const [includeDecisionMaking, setIncludeDecisionMaking] = useState(restore?.includeDecisionMaking ?? true);
     const [dmConfirmOpen, setDmConfirmOpen] = useState(false);
-    const [patientGate, setPatientGate] = useState<PatientIdForm | null>(null);
 
     const visiblePages = useMemo(() => [
         { id: 'edit' as const, label: 'Write Note' },
@@ -163,6 +160,19 @@ export const WriteNotePage = ({
         profile: editorProfile, authUserId,
     } = editor;
 
+    const exportFlow = useNoteExportFlow({
+        onSF600: handleExportSF600,
+        onDD689: handleExportDD689,
+        sf600Preview,
+        dd689Preview,
+        generating: sf600ExportStatus === 'generating' || exportStatus === 'generating',
+        downloadSF600,
+        downloadDD689,
+        clearSF600Preview,
+        clearDD689Preview,
+    });
+    const startExport = exportFlow.start;
+
     // ── PE: seed template block keys from symptom-templated focused-exam set ──
     // Keeps symptom templating while using the Provider-primitive in-card chrome
     // (template mode shows the cycle+Plus ActionPill at top-right and drops the
@@ -170,7 +180,7 @@ export const WriteNotePage = ({
     const symptomCode = selectedSymptom?.icon || 'A-1';
 
     // Route tagged algorithm list items (questionOptions.noteTag) into HPI/PE.
-    // Dev-gated (beta) while per-algorithm tagging rolls out AND opt-in per medic
+    // Opt-in per medic
     // via Settings → App Content (profiles.seed_algorithm_note, default off).
     const noteRoutingEnabled = useBetaFlag('algorithmNoteRouting')
         && editorProfile?.seedAlgorithmNote === true;
@@ -493,19 +503,15 @@ export const WriteNotePage = ({
             } });
         }
         opts.push(...noteExportOptions({
-            onExportSF600: () => { if (previewNote) setPatientGate('sf600'); },
-            onExportDD689: () => { if (encodedValue) setPatientGate('dd689'); },
+            onExportSF600: () => { if (previewNote) startExport('sf600'); },
+            onExportDD689: () => { if (encodedValue) startExport('dd689'); },
             onShare: handleShare,
             onEditInProvider: isProviderRole && encodedValue ? async () => {
-                // The Provider drawer re-imports plaintext; signed-in notes carry an enc: token.
-                const payload = isEncryptedBarcode(encodedValue) ? await decryptBarcode(encodedValue) : encodedValue;
-                if (!payload) { emitErrorToast('Couldn’t open in Provider', 'This note could not be unlocked on this device.'); return; }
-                close();
-                openProviderNote({ payload });
+                await editInProvider(encodedValue, { beforeOpen: close });
             } : undefined,
         }));
         return opts;
-    }, [savedNotes, encodedValue, previewNote, logged, isProviderRole, handleSave, handleLog, handleShare, onExpansionChange, openProviderNote]);
+    }, [savedNotes, encodedValue, previewNote, logged, isProviderRole, handleSave, handleLog, handleShare, onExpansionChange, editInProvider, startExport]);
 
     const handleDone = (e: MouseEvent<HTMLButtonElement>) => {
         setFinishAnchor(e.currentTarget.getBoundingClientRect());
@@ -719,6 +725,7 @@ export const WriteNotePage = ({
                         <div className="px-4 py-3 overflow-x-hidden">{paneStack.body('')}</div>
                     </PaneCard>
                 )}
+                {!isMobile && <NoteExportPane flow={exportFlow} desktopZIndex={45} />}
                 <ConfirmDialog
                     visible={dmConfirmOpen}
                     title="Include decision making in note?"
@@ -743,19 +750,7 @@ export const WriteNotePage = ({
                 <div className="px-4 py-3 overflow-x-hidden">{paneStack.body('')}</div>
             </StackSheet>
         )}
-        <PatientIdPopover
-            isOpen={patientGate !== null}
-            anchorRect={null}
-            form={patientGate ?? undefined}
-            onClose={() => setPatientGate(null)}
-            onConfirm={(patient, extras, stamp) => patientGate === 'dd689' ? handleExportDD689(patient, extras) : handleExportSF600(patient, stamp)}
-        />
-        <PdfPreviewModal
-            preview={sf600Preview ?? dd689Preview ?? null}
-            generating={sf600ExportStatus === 'generating' || exportStatus === 'generating'}
-            onDownload={sf600Preview ? downloadSF600 : downloadDD689}
-            onClose={sf600Preview ? clearSF600Preview : clearDD689Preview}
-        />
+        {isMobile && <NoteExportPane flow={exportFlow} />}
         </>
     );
 };

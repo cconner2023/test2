@@ -4,11 +4,8 @@ import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
 import { GlassBand } from '@/Components/primitives/GlassBand'
 import { MessageBubble } from './Settings/MessageBubble'
 import { SharedObjectPicker } from './Messages/SharedObjectPicker'
-import { ImageEditor } from './ImageEditor'
 import type { MessageContent, SharedBundleContent, SharedRefContent, FileContent, ImageContent } from '../lib/signal/messageContent'
-import { resizeAndThumbnail } from '../Hooks/useMessages'
-import { dataUrlToBlob } from '../Utilities/imageUtils'
-import { uploadEncryptedAttachment, attachmentFailureMessage, deleteAttachments, MAX_ATTACHMENT_BYTES } from '../lib/signal/attachmentService'
+import { attachmentFailureMessage, deleteAttachments } from '../lib/signal/attachmentService'
 import { UploadChip, useUploadTask } from '@/Components/primitives/UploadProgress'
 import { emitErrorToast } from '../lib/errorFeedback'
 import { ErrorDisplay } from './primitives/ErrorDisplay'
@@ -20,7 +17,7 @@ import { useMessagesContext } from '../Hooks/MessagesContext'
 import { RecipientPicker } from './Messages/RecipientPicker'
 import { useAuth } from '../Hooks/useAuth'
 import { useAuthStore } from '../stores/useAuthStore'
-import { useImagePaste } from '../Hooks/useImagePaste'
+import { useMediaPickers, uploadMedia, type MediaSource } from '../Hooks/useMediaPickers'
 import { useChatInteractions } from '../Hooks/useChatInteractions'
 import { useNavigationStore } from '../stores/useNavigationStore'
 import { useSharedObjectActions } from '../Hooks/useSharedObjectActions'
@@ -45,8 +42,7 @@ export interface ParticipantStatus {
 }
 
 type StagedSource =
-  | { kind: 'file'; file: File; preview?: undefined }
-  | { kind: 'image'; file: File; original: boolean; preview: string }
+  | MediaSource
   | { kind: 'ref'; content: SharedRefContent; preview?: undefined }
   | { kind: 'bundle'; source: BundleSource; preview?: undefined }
 
@@ -205,8 +201,6 @@ export function ChatDetailView({
   const [text, setText] = useState('')
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const docInputRef = useRef<HTMLInputElement>(null)
   // Anything from the + menu (photo, file, event, map, property, template) waits
   // above the composer until the user sends, so it can go out with a message.
   // Uploads start on pick. The source is kept for Retry; the ref mirrors
@@ -238,8 +232,6 @@ export function ChatDetailView({
     setStaged(null)
     setStagedContent(null)
   }, [fileUpload.clear, setStaged, setStagedContent])
-  // A picked/pasted image awaiting the zoom/crop review step before it's sent.
-  const [editFile, setEditFile] = useState<File | null>(null)
   const conversationRef = useRef<HTMLDivElement>(null)
   const [attachOpen, setAttachOpen] = useState(false)
   // The share menu anchors to this live button ref (not a captured rect) so an iOS
@@ -373,12 +365,6 @@ export function ChatDetailView({
     return () => registerThreadBack(null)
   }, [registerThreadBack, activeThreadId, handleCloseThread])
 
-  // Image paste — route into the zoom/crop review step (not an immediate send).
-  const handlePastedImage = useCallback((file: File) => {
-    setEditFile(file)
-  }, [])
-  useImagePaste(!sending && !hideImageUpload, handlePastedImage)
-
   const handleSend = useCallback(async () => {
     const trimmed = text.trim()
     if (sending) return
@@ -421,30 +407,6 @@ export function ChatDetailView({
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() }
   }, [handleSend])
 
-  // Force the text/plain clipboard flavor on paste. iOS Safari otherwise picks
-  // the text/html flavor (e.g. from WriteNote's copyWithHtml dual-flavor copy)
-  // and mangles block boundaries — line breaks come through as %20 artifacts.
-  const handlePaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    const plain = e.clipboardData.getData('text/plain')
-    if (!plain) return // image / no-text paste — let useImagePaste handle it
-    e.preventDefault()
-    const el = e.currentTarget
-    const start = el.selectionStart ?? text.length
-    const end = el.selectionEnd ?? text.length
-    const next = text.slice(0, start) + plain + text.slice(end)
-    setText(next)
-    requestAnimationFrame(() => {
-      const pos = start + plain.length
-      el.setSelectionRange(pos, pos)
-    })
-  }, [text])
-
-  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) setEditFile(file)
-    e.target.value = ''
-  }, [])
-
   // Uploads on pick and stages; handleSend sends via sendStructured, which covers
   // 1:1, self-note and group.
   //   file    any type, byte-for-byte (no metadata stripping, by decision).
@@ -481,34 +443,7 @@ export function ChatDetailView({
           },
         }
       }
-      const { file } = source
-      if (source.kind === 'file') {
-        const up = await uploadEncryptedAttachment(userId, file, { class: 'm', onProgress, signal })
-        if (!up.ok) return { ok: false, error: attachmentFailureMessage(up.error) }
-        return {
-          ok: true,
-          data: {
-            type: 'file', store: 'r2', path: up.data.path, key: up.data.key,
-            mime: file.type || 'application/octet-stream', name: file.name, size: file.size,
-          },
-        }
-      }
-      let resized: Awaited<ReturnType<typeof resizeAndThumbnail>>
-      try {
-        resized = await resizeAndThumbnail(file, source.original)
-      } catch {
-        return { ok: false, error: 'That image could not be read.' }
-      }
-      const { resizedDataUrl, width, height, thumbnail } = resized
-      const up = await uploadEncryptedAttachment(userId, dataUrlToBlob(resizedDataUrl), { class: 'm', onProgress, signal })
-      if (!up.ok) return { ok: false, error: attachmentFailureMessage(up.error) }
-      return {
-        ok: true,
-        data: {
-          type: 'image', mime: 'image/jpeg', key: up.data.key, path: up.data.path, store: up.data.store,
-          width, height, thumbnail,
-        },
-      }
+      return uploadMedia(userId, source, { onProgress, signal })
     })
     if (content) setStagedContent(content)
   }, [fileUpload.start, userId, user?.clinicName, setStagedContent])
@@ -524,7 +459,6 @@ export function ChatDetailView({
 
   // Review step confirmed. Without sendStructured (admin system threads) there is no staging path, so the photo sends at once as before.
   const handleEditedImage = useCallback(async (edited: File, original: boolean) => {
-    setEditFile(null)
     if (sendStructured && userId) {
       stage({ kind: 'image', file: edited, original, preview: URL.createObjectURL(edited) })
       return
@@ -533,14 +467,8 @@ export function ChatDetailView({
     if (success) playSendSound()
   }, [sendStructured, userId, stage, sendImage, conversationId])
 
-  const handleDocChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    e.target.value = ''
-    if (!file || !sendStructured || !userId) return
-    if (file.size > MAX_ATTACHMENT_BYTES) {
-      emitErrorToast('File too large', 'Files must be 25 MB or smaller.')
-      return
-    }
+  const stageDoc = useCallback((file: File) => {
+    if (!sendStructured || !userId) return
     stage({ kind: 'file', file })
   }, [sendStructured, userId, stage])
 
@@ -586,6 +514,31 @@ export function ChatDetailView({
     || blockOnUnavailable
 
   const canUploadImage = !hideImageUpload && (!requestFlow || requestFlow.status === 'accepted' || requestFlow.status === 'none' || !!isSelfChat)
+
+  const media = useMediaPickers({
+    enabled: canUploadImage && !sending,
+    onImage: handleEditedImage,
+    onFile: stageDoc,
+    containerRef: conversationRef,
+  })
+
+  // Text pastes force text/plain: iOS Safari's text/html flavor mangles line breaks.
+  const mediaPaste = media.onPaste
+  const handlePaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    if (mediaPaste(e)) return
+    const plain = e.clipboardData.getData('text/plain')
+    if (!plain) return
+    e.preventDefault()
+    const el = e.currentTarget
+    const start = el.selectionStart ?? text.length
+    const end = el.selectionEnd ?? text.length
+    const next = text.slice(0, start) + plain + text.slice(end)
+    setText(next)
+    requestAnimationFrame(() => {
+      const pos = start + plain.length
+      el.setSelectionRange(pos, pos)
+    })
+  }, [text, mediaPaste])
 
   const canSendVoice = !!sendVoice && (
     !requestFlow || requestFlow.status === 'accepted' || requestFlow.status === 'none' || !!isSelfChat
@@ -673,8 +626,7 @@ export function ChatDetailView({
         <div
           className="px-4 pt-3 pb-3"
         >
-          <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
-          <input ref={docInputRef} type="file" onChange={handleDocChange} className="hidden" />
+          {media.inputs}
           <UploadChip
             task={fileUpload.task}
             onDismiss={clearStaged}
@@ -720,7 +672,7 @@ export function ChatDetailView({
               {canUploadImage && (
                 <button
                   ref={attachBtnRef}
-                  onClick={() => sendStructured ? setAttachOpen(true) : fileInputRef.current?.click()}
+                  onClick={() => sendStructured ? setAttachOpen(true) : media.pickPhoto()}
                   disabled={sending}
                   className={`w-10 h-10 rounded-full bg-themewhite2/90 dark:bg-themewhite3/90 flex items-center justify-center disabled:opacity-30 active:scale-95 transition-all shrink-0
                               ${attachOpen ? 'rotate-45' : ''}`}
@@ -912,19 +864,14 @@ export function ChatDetailView({
           anchorRef={attachBtnRef}
           clinicId={clinicId ?? null}
           onClose={() => setAttachOpen(false)}
-          onPickPhoto={() => fileInputRef.current?.click()}
-          onPickFile={() => docInputRef.current?.click()}
+          onPickPhoto={media.pickPhoto}
+          onPickFile={media.pickFile}
           onPick={mediaOnlyAttach ? undefined : handleShareObject}
           onPickBundle={mediaOnlyAttach ? undefined : handleShareBundle}
         />
       )}
       {/* Zoom/crop review step between picking an image and sending it. */}
-      <ImageEditor
-        file={editFile}
-        onCancel={() => setEditFile(null)}
-        onConfirm={handleEditedImage}
-        containerRef={conversationRef}
-      />
+      {media.editor}
       {!showThread && blockedReason && (
         <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-center px-6 pointer-events-none">
           <p className="text-[10pt] text-tertiary text-center max-w-[90%]">

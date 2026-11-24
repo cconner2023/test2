@@ -194,7 +194,6 @@ export interface UserTypes {
      * sections (see Utilities/algorithmNoteRouting). Off by default — the medic
      * opts in from Settings → App Content. Synced to profiles.seed_algorithm_note
      * (same train as `theme`/`swipeActions`). undefined/null → treated as false.
-     * Gated additionally by the `algorithmNoteRouting` beta flag while in beta.
      */
     seedAlgorithmNote?: boolean
     /**

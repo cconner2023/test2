@@ -12,7 +12,7 @@ import { useAuthStore } from '../../stores/useAuthStore'
  * list. Mirrors PmcsSheet/DispatchSheet: an OverlayStack scoped to the property
  * drawer (containerRef), launched from the zone ellipsis. Two roster pickers →
  * "Create" hands the chosen names back to the host, which runs the PDF export +
- * PdfPreviewModal. Names are "RANK LAST FIRST" (the DD 1750 convention);
+ * PdfPreview. Names are "RANK LAST FIRST" (the DD 1750 convention);
  * operational identity only, no PHI.
  */
 

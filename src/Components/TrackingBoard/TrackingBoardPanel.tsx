@@ -1,7 +1,8 @@
-import { createContext, useContext, useEffect, useRef, useState, type ChangeEvent, type ReactNode } from 'react'
+import { createContext, useContext, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { UnderlineTabs } from '@/Components/primitives/UnderlineTabs'
 import { ArrowRightLeft, ArrowRight, CircleCheck, Eye, Trash2, Ban, Pencil, Navigation, MapPinCheck, MapPin, X, ArrowUp, Plus, Copy } from 'lucide-react'
-import { ListItemRow } from '@/Components/primitives/ListItemRow'
+import { ListItemRow, RowMoreButton } from '@/Components/primitives/ListItemRow'
+import { ROW_META } from '@/Components/primitives/rowDensity'
 import { PersonnelGroupBand } from '@/Components/primitives/PersonnelRow'
 import { BrnPinInput, BRN_PATTERN } from '@/Components/DomainInputs'
 import { LiftedRowMenu } from '@/Components/primitives/LiftedRowMenu'
@@ -9,22 +10,19 @@ import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
 import { ContextMenu, type ContextMenuItem } from '@/Components/primitives/ContextMenu'
 import { SwipeActionRow, type SwipeSide } from '@/Components/primitives/SwipeActionRow'
 import { SwipeBindingPicker, type SwipeBindingDisplay } from '@/Components/Settings/SwipeActionsSection'
+import { useIsTouch } from '@/Hooks/useIsMobile'
 import {
   TRACKING_SWIPE_POOL, useTrackingSwipeActions, setTrackingSwipeActions, type TrackingSwipeBinding,
 } from '../../Utilities/trackingSwipeActions'
 import { SectionCard, PageSectionHeader } from '@/Components/primitives/Section'
-import { TextArea } from '@/Components/primitives/FormInputs'
 import { TintedCard, TintedCardFoot, type CardTint } from '@/Components/primitives/TintedCard'
 import { formatDtg } from '../../Utilities/propertyDates'
 import { ToggleSwitch } from '../Settings/ToggleSwitch'
 import { MessageBubble } from '../Settings/MessageBubble'
 import { SharedObjectPicker } from '../Messages/SharedObjectPicker'
-import { ImageEditor } from '../ImageEditor'
 import { UploadChip, useUploadTask } from '@/Components/primitives/UploadProgress'
-import { uploadEncryptedAttachment, attachmentFailureMessage, deleteAttachments, MAX_ATTACHMENT_BYTES } from '../../lib/signal/attachmentService'
-import { resizeAndThumbnail } from '../../Hooks/useMessages'
-import { dataUrlToBlob } from '../../Utilities/imageUtils'
-import { emitErrorToast } from '../../lib/errorFeedback'
+import { deleteAttachments } from '../../lib/signal/attachmentService'
+import { useMediaPickers, uploadMedia, type MediaSource } from '../../Hooks/useMediaPickers'
 import { useAuthStore } from '../../stores/useAuthStore'
 import type { DecryptedSignalMessage } from '../../lib/signal/transportTypes'
 import type { LinkedFeatureRef } from '../../Types/MissionTypes'
@@ -206,10 +204,10 @@ export function boardGroups(net: TrackingNetwork, viewerId: string): BoardGroup[
 // Calendar personnel-filter idiom: collapsible PersonnelGroupBand per group,
 // condensed BRN cards (BrnRailCard) under it. No counts / dwell indicators.
 
-export function TrackingBoardList({ entries, onSelect, onEdit, onMove, onTransit, onDelete, expandedId }: ListProps & CardActions) {
+export function TrackingBoardList({ entries, activeId, onSelect, onEdit, onMove, onTransit, onDelete, expandedId }: ListProps & CardActions) {
   const { net, viewerId } = useBoardScope()
   const cardMenu = useBrnCardMenu({ onSelect, onEdit, onMove, onTransit, onDelete }, measureRailCard, e => (
-    <div className="rounded-xl bg-themewhite overflow-hidden"><BrnRailCardBody entry={e} /></div>
+    <div className="rounded-xl bg-themewhite overflow-hidden"><BrnRailRow entry={e} /></div>
   ))
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set())
   const toggle = (key: string) => setCollapsed(prev => {
@@ -231,11 +229,12 @@ export function TrackingBoardList({ entries, onSelect, onEdit, onMove, onTransit
               onToggle={() => toggle(g.key)}
             />
             {open && rows.length > 0 && (
-              <div className="px-2 py-2 space-y-1.5">
+              <div className="py-1">
                 {rows.map(e => (
                   <BrnRailCard
                     key={e.id}
                     entry={e}
+                    active={activeId === e.id}
                     hidden={expandedId === e.id}
                     onOpen={() => cardMenu.open(e)}
                     onMenu={rect => cardMenu.setMenu({ entry: e, rect, mode: 'all' })}
@@ -369,15 +368,13 @@ export function BrnDetailLines({ entry }: { entry: TrackingEntry }) {
 const latestNote = (e: TrackingEntry) => e.comments[e.comments.length - 1]?.text
 
 /** Footer parts: location (→ destination while in transit) · since / en-route stamp. */
-function useBrnFoot(entry: TrackingEntry, arrowIcon: boolean) {
+function useBrnFoot(entry: TrackingEntry) {
   const { net } = useBoardScope()
   const t = entry.transit
   const left = (
     <>
       {placeLabel(net, entry)}
-      {t && (arrowIcon
-        ? <> <ArrowRight size={10} className="inline -mt-px" /> {destinationLabel(net, t.to)}</>
-        : ` → ${destinationLabel(net, t.to)}`)}
+      {t && <> <ArrowRight size={10} className="inline -mt-px" /> {destinationLabel(net, t.to)}</>}
     </>
   )
   const right = t ? `En route ${fmtTime(t.at)}` : `Since ${fmtDateTime(sinceAt(entry))}`
@@ -386,7 +383,7 @@ function useBrnFoot(entry: TrackingEntry, arrowIcon: boolean) {
 
 /** Selected-BRN footer band on the tint: location · origin (check-in) DTG. */
 export function BrnCardFoot({ entry }: { entry: TrackingEntry }) {
-  const { left } = useBrnFoot(entry, true)
+  const { left } = useBrnFoot(entry)
   return <TintedCardFoot tint={tintFor(entry)} left={left} right={fmtDateTime(entry.checkedInAt)} />
 }
 
@@ -395,7 +392,7 @@ export function BrnCardFoot({ entry }: { entry: TrackingEntry }) {
  *  (BRN, UIC, latest note) → footer band (location) on the tint. */
 function BrnCard({ entry, onMore }: { entry: TrackingEntry; onMore?: (rect: DOMRect) => void }) {
   const { net } = useBoardScope()
-  const { left, right } = useBrnFoot(entry, true)
+  const { left, right } = useBrnFoot(entry)
   return (
     <TintedCard
       onMore={onMore}
@@ -409,29 +406,36 @@ function BrnCard({ entry, onMore }: { entry: TrackingEntry; onMore?: (rect: DOMR
   )
 }
 
-/** Condensed BrnCard — same tinted shell → white inner (BRN · UIC, latest note)
- *  → footer band (location · since). Rail card and its lifted clone. */
-function BrnRailCardBody({ entry, onMore }: { entry: TrackingEntry; onMore?: (rect: DOMRect) => void }) {
+/** Desktop rail row: BRN · UIC over station · DTG, ellipsis.
+ *  Rail row and its lifted clone. */
+function BrnRailRow({ entry, active = false, onMore }: { entry: TrackingEntry; active?: boolean; onMore?: (rect: DOMRect) => void }) {
   const { net } = useBoardScope()
-  const { left, right } = useBrnFoot(entry, false)
+  const { left } = useBrnFoot(entry)
+  const uic = originUic(net.clusters, entry)
+  const at = entry.transit ? entry.transit.at : sinceAt(entry)
+  const top = 'text-[10pt] font-mono font-medium text-primary'
   return (
-    <TintedCard
-      compact
-      onMore={onMore}
-      tint={tintFor(entry)}
-      title={entry.brnLabel}
-      subtitle={originUic(net.clusters, entry)}
-      note={latestNote(entry)}
-      footLeft={left}
-      footRight={right}
+    <ListItemRow
+      as="div"
+      className={`px-4 py-2.5 cursor-pointer ${active ? 'bg-themeblue3/10' : 'hover:bg-primary/3'}`}
+      center={
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-0.5">
+          <span className={`${top} truncate`}>{entry.brnLabel}</span>
+          <span className={`${top} text-right`}>{uic}</span>
+          <span className={`${ROW_META} truncate`}>{left}</span>
+          <span className={`${ROW_META} font-mono text-right`}>{fmtDateTime(at)}</span>
+        </div>
+      }
+      right={onMore && <RowMoreButton onMore={onMore} />}
     />
   )
 }
 
-/** Desktop rail card. Click opens the BRN PaneCard over the grid pane;
- *  right-click / long-press lifts it into the shared card menu. */
-function BrnRailCard({ entry, hidden, onOpen, onMenu }: {
+/** Desktop rail row. Click opens the BRN PaneCard over the grid pane;
+ *  right-click / long-press / ellipsis lifts it into the shared card menu. */
+function BrnRailCard({ entry, active, hidden, onOpen, onMenu }: {
   entry: TrackingEntry
+  active: boolean
   /** Expanded into the overlay — held invisible so the overlay reads as the card. */
   hidden: boolean
   onOpen: () => void
@@ -440,12 +444,11 @@ function BrnRailCard({ entry, hidden, onOpen, onMenu }: {
   return (
     <div data-brn-rail={entry.id} className={hidden ? 'invisible' : undefined}>
       <SwipeActionRow
-        className="rounded-xl transition-shadow hover:shadow-md"
         surfaceClassName="bg-themewhite"
         onClick={onOpen}
         onLongPress={onMenu}
       >
-        <BrnRailCardBody entry={entry} onMore={onMenu} />
+        <BrnRailRow entry={entry} active={active} onMore={onMenu} />
       </SwipeActionRow>
     </div>
   )
@@ -720,7 +723,7 @@ export const draftFromEntry = (e: TrackingEntry): TrackingEditDraft => ({
 export const draftIsValid = (d: TrackingEditDraft) => BRN_PATTERN.test(d.brn)
 
 /** Check-in — self-rowing primitives straight in the PreviewOverlay card
- *  (no section chrome); Save rides the overlay's right footer. */
+ *  (no section chrome); Check in rides the surface header. */
 export function TrackingCheckInFields({ draft, onChange }: {
   draft: TrackingEditDraft
   onChange: (d: TrackingEditDraft) => void
@@ -728,19 +731,156 @@ export function TrackingCheckInFields({ draft, onChange }: {
   return (
     <>
       <BrnPinInput value={draft.brn} onChange={brn => onChange({ ...draft, brn })} spread autoFocus />
-      <TextArea
-        value={draft.newComment}
-        onChange={newComment => onChange({ ...draft, newComment })}
-        placeholder="Comment"
-        maxLength={COMMENT_MAX_CHARS}
-        rows={3}
-      />
+      <div className="mt-3">
+        <DraftConversation draft={draft} onChange={onChange} />
+      </div>
     </>
   )
 }
 
-type StagedSource = { kind: 'image'; file: File; original: boolean; preview: string } | { kind: 'file'; file: File }
 type StagedAttachment = NonNullable<TrackingComment['attachment']>
+
+/** Chat composer (ChatDetailView idiom): + | input | send. No voice. Send
+ *  appends to draft.added; unsent text and a finished upload (newComment /
+ *  staged) still go with the header Save. */
+function CommentComposer({ draft, onChange }: {
+  draft: TrackingEditDraft
+  onChange: (d: TrackingEditDraft) => void
+}) {
+  const userId = useAuthStore(s => s.user?.id) ?? ''
+  const [attachOpen, setAttachOpen] = useState(false)
+  const [stagedSource, setStagedSource] = useState<MediaSource | null>(null)
+  const staged = draft.staged ?? null
+  // Upload completion lands after awaits; write through the latest draft.
+  const draftRef = useRef(draft)
+  draftRef.current = draft
+  const setStaged = (a: StagedAttachment | null) => {
+    const { staged: _, ...rest } = draftRef.current
+    const next = a ? { ...rest, staged: a } : rest
+    draftRef.current = next
+    onChange(next)
+  }
+  const upload = useUploadTask<StagedAttachment>()
+  const inputRef = useRef<HTMLTextAreaElement>(null)
+  const attachBtnRef = useRef<HTMLButtonElement>(null)
+
+  // Auto-grow to 120px, same as the chat input.
+  useLayoutEffect(() => {
+    const el = inputRef.current
+    if (!el) return
+    // Empty: rows=1, so a wrapped placeholder can't grow it.
+    if (!draft.newComment) { el.style.height = ''; return }
+    // The auto collapse clamps the scroller; restore it so paste doesn't jump.
+    let scroller: HTMLElement | null = el.parentElement
+    while (scroller && !/(auto|scroll)/.test(getComputedStyle(scroller).overflowY)) scroller = scroller.parentElement
+    const top = scroller?.scrollTop ?? 0
+    el.style.height = 'auto'
+    el.style.height = `${Math.min(el.scrollHeight, 120)}px`
+    if (scroller) scroller.scrollTop = top
+  }, [draft.newComment])
+
+  // A staged object the user dismisses goes now rather than at the m/ lifecycle.
+  const releaseStaged = (deleteObject: boolean) => {
+    upload.clear()
+    const content = draftRef.current.staged
+    if (deleteObject && content) void deleteAttachments([content.path])
+    if (stagedSource?.kind === 'image') URL.revokeObjectURL(stagedSource.preview)
+    setStagedSource(null)
+    if (content) setStaged(null)
+  }
+
+  const runUpload = async (source: MediaSource) => {
+    if (draftRef.current.staged) setStaged(null)
+    const meta = source.kind === 'image'
+      ? { name: 'Photo', size: source.file.size, preview: source.preview }
+      : { name: source.file.name, size: source.file.size }
+    const content = await upload.start(meta, ({ onProgress, signal }) => uploadMedia(userId, source, { onProgress, signal }))
+    if (content) setStaged(content)
+  }
+  const stage = (source: MediaSource) => {
+    releaseStaged(true)
+    setStagedSource(source)
+    void runUpload(source)
+    inputRef.current?.focus()
+  }
+  const media = useMediaPickers({
+    enabled: true,
+    onImage: (file, original) => stage({ kind: 'image', file, original, preview: URL.createObjectURL(file) }),
+    onFile: file => stage({ kind: 'file', file }),
+  })
+
+  // Chat rule: a finished upload sends; text alone only with no upload in the chip.
+  const canSend = !!staged || (!!draft.newComment.trim() && !upload.task)
+  const send = () => {
+    if (!canSend) return
+    // Chat send order: the attachment is its own bubble, then the text.
+    const text = draft.newComment.trim()
+    const next = [...(draft.added ?? []), ...(staged ? [{ text: '', attachment: staged }] : []), ...(text ? [{ text }] : [])]
+    const { staged: _, ...rest } = draft
+    draftRef.current = { ...rest, added: next, newComment: '' }
+    // Ownership passes to the comment; release without deleting the object.
+    upload.clear()
+    if (stagedSource?.kind === 'image') URL.revokeObjectURL(stagedSource.preview)
+    setStagedSource(null)
+    onChange(draftRef.current)
+  }
+
+  return (
+    <>
+      {media.inputs}
+      <UploadChip
+        task={upload.task}
+        onDismiss={() => releaseStaged(true)}
+        onRetry={stagedSource ? () => void runUpload(stagedSource) : undefined}
+      />
+      <div className="flex items-end gap-2">
+        <button
+          ref={attachBtnRef}
+          onClick={() => setAttachOpen(true)}
+          aria-label="Attach"
+          className={`w-10 h-10 rounded-full bg-themewhite2/90 dark:bg-themewhite3/90 flex items-center justify-center active:scale-95 transition-all shrink-0
+                      ${attachOpen ? 'rotate-45' : ''}`}
+        >
+          <Plus size={18} className="text-tertiary" />
+        </button>
+        <div className="chat-input-bar relative flex flex-1 items-center rounded-[22px] border border-themeblue3/20 shadow-xs bg-themewhite
+            focus-within:border-themeblue1/40 focus-within:bg-themewhite2 transition-all duration-300">
+          <textarea
+            ref={inputRef}
+            rows={1}
+            value={draft.newComment}
+            maxLength={COMMENT_MAX_CHARS}
+            onChange={e => onChange({ ...draft, newComment: e.target.value })}
+            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
+            onPaste={media.onPaste}
+            placeholder={upload.task ? 'Add a comment...' : 'Type a comment...'}
+            aria-label="Comment"
+            className="w-full bg-transparent outline-none text-[12pt] text-tertiary px-3.5 py-2.5
+                rounded-[22px] min-w-0 placeholder:text-tertiary resize-none leading-snug"
+          />
+        </div>
+        {canSend && (
+          <button
+            onClick={send}
+            aria-label="Send"
+            className="animate-spring-in w-10 h-10 rounded-full bg-themeblue3 flex items-center justify-center active:scale-95 transition-all shrink-0"
+          >
+            <ArrowUp size={18} className="text-white" />
+          </button>
+        )}
+      </div>
+      <SharedObjectPicker
+        isOpen={attachOpen}
+        anchorRef={attachBtnRef}
+        clinicId={null}
+        onClose={() => setAttachOpen(false)}
+        onPickPhoto={media.pickPhoto}
+        onPickFile={media.pickFile}
+      />
+      {media.editor}
+    </>
+  )
+}
 
 /** BRN + comments — the open BRN's ellipsis Edit form. Comments read as the
  *  chat conversation: bubbles (long-press / hover ellipsis -> the chat's lifted
@@ -756,108 +896,41 @@ export function TrackingEditForm({ entry, draft, onChange }: {
   draft: TrackingEditDraft
   onChange: (d: TrackingEditDraft) => void
 }) {
+  return (
+    <div className="space-y-4">
+      <section>
+        <PageSectionHeader>BRN</PageSectionHeader>
+        <SectionCard>
+          <BrnPinInput
+            value={draft.brn}
+            onChange={brn => onChange({ ...draft, brn })}
+            spread
+            autoFocus={!entry}
+          />
+        </SectionCard>
+      </section>
+
+      <section>
+        <PageSectionHeader>Activity</PageSectionHeader>
+        <DraftConversation entry={entry} draft={draft} onChange={onChange} />
+      </section>
+    </div>
+  )
+}
+
+/** Thread (history + comments + sent-but-unsaved) over the composer, with the
+ *  chat's bubble menu. Shared by Edit and check-in. */
+function DraftConversation({ entry, draft, onChange }: {
+  entry?: TrackingEntry
+  draft: TrackingEditDraft
+  onChange: (d: TrackingEditDraft) => void
+}) {
   const me = useOwnStamp()
-  const userId = useAuthStore(s => s.user?.id) ?? ''
   const [menu, setMenu] = useState<{ key: string; x: number; y: number; rect?: DOMRect; cloneHtml?: string } | null>(null)
   const [editing, setEditing] = useState<{ key: string; text: string } | null>(null)
-  const [attachOpen, setAttachOpen] = useState(false)
-  const [editFile, setEditFile] = useState<File | null>(null)
-  const [stagedSource, setStagedSource] = useState<StagedSource | null>(null)
-  const staged = draft.staged ?? null
-  // Upload completion lands after awaits; write through the latest draft.
-  const draftRef = useRef(draft)
-  draftRef.current = draft
-  const setStaged = (a: StagedAttachment | null) => {
-    const { staged: _, ...rest } = draftRef.current
-    const next = a ? { ...rest, staged: a } : rest
-    draftRef.current = next
-    onChange(next)
-  }
-  const upload = useUploadTask<StagedAttachment>()
-  const inputRef = useRef<HTMLTextAreaElement>(null)
-  const attachBtnRef = useRef<HTMLButtonElement>(null)
-  const photoInputRef = useRef<HTMLInputElement>(null)
-  const docInputRef = useRef<HTMLInputElement>(null)
   const added = draft.added ?? []
   const addedKey = (i: number) => `added-${i}`
   const addedIndex = (key: string) => key.startsWith('added-') ? Number(key.slice(6)) : -1
-
-  // Auto-grow to 120px, same as the chat input.
-  useEffect(() => {
-    const el = inputRef.current
-    if (!el) return
-    el.style.height = 'auto'
-    el.style.height = `${Math.min(el.scrollHeight, 120)}px`
-  }, [draft.newComment])
-
-  // A staged object the user dismisses goes now rather than at the m/ lifecycle.
-  const releaseStaged = (deleteObject: boolean) => {
-    upload.clear()
-    const content = draftRef.current.staged
-    if (deleteObject && content) void deleteAttachments([content.path])
-    if (stagedSource?.kind === 'image') URL.revokeObjectURL(stagedSource.preview)
-    setStagedSource(null)
-    if (content) setStaged(null)
-  }
-
-  const runUpload = async (source: StagedSource) => {
-    if (draftRef.current.staged) setStaged(null)
-    const meta = source.kind === 'image'
-      ? { name: 'Photo', size: source.file.size, preview: source.preview }
-      : { name: source.file.name, size: source.file.size }
-    const content = await upload.start(meta, async ({ onProgress, signal }) => {
-      const { file } = source
-      if (source.kind === 'file') {
-        const up = await uploadEncryptedAttachment(userId, file, { class: 'm', onProgress, signal })
-        if (!up.ok) return { ok: false, error: attachmentFailureMessage(up.error) }
-        return {
-          ok: true,
-          data: {
-            type: 'file', store: 'r2', path: up.data.path, key: up.data.key,
-            mime: file.type || 'application/octet-stream', name: file.name, size: file.size,
-          },
-        }
-      }
-      let resized: Awaited<ReturnType<typeof resizeAndThumbnail>>
-      try {
-        resized = await resizeAndThumbnail(file, source.original)
-      } catch {
-        return { ok: false, error: 'That image could not be read.' }
-      }
-      const { resizedDataUrl, width, height, thumbnail } = resized
-      const up = await uploadEncryptedAttachment(userId, dataUrlToBlob(resizedDataUrl), { class: 'm', onProgress, signal })
-      if (!up.ok) return { ok: false, error: attachmentFailureMessage(up.error) }
-      return {
-        ok: true,
-        data: {
-          type: 'image', mime: 'image/jpeg', key: up.data.key, path: up.data.path, store: up.data.store,
-          width, height, thumbnail,
-        },
-      }
-    })
-    if (content) setStaged(content)
-  }
-  const stage = (source: StagedSource) => {
-    releaseStaged(true)
-    setStagedSource(source)
-    void runUpload(source)
-    inputRef.current?.focus()
-  }
-  const onPhoto = (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    e.target.value = ''
-    if (file) setEditFile(file)
-  }
-  const onDoc = (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    e.target.value = ''
-    if (!file) return
-    if (file.size > MAX_ATTACHMENT_BYTES) {
-      emitErrorToast('File too large', 'Files must be 25 MB or smaller.')
-      return
-    }
-    stage({ kind: 'file', file })
-  }
 
   const { net } = useBoardScope()
   const now = Date.now()
@@ -886,21 +959,6 @@ export function TrackingEditForm({ entry, draft, onChange }: {
       onChange({ ...draft, comments: draft.comments.map(c => c.id === key ? { ...c, removed: true } : c) })
     }
   }
-  // Chat rule: a finished upload sends; text alone only with no upload in the chip.
-  const canSend = !!staged || (!!draft.newComment.trim() && !upload.task)
-  const send = () => {
-    if (!canSend) return
-    // Chat send order: the attachment is its own bubble, then the text.
-    const text = draft.newComment.trim()
-    const next = [...added, ...(staged ? [{ text: '', attachment: staged }] : []), ...(text ? [{ text }] : [])]
-    const { staged: _, ...rest } = draft
-    draftRef.current = { ...rest, added: next, newComment: '' }
-    // Ownership passes to the comment; release without deleting the object.
-    upload.clear()
-    if (stagedSource?.kind === 'image') URL.revokeObjectURL(stagedSource.preview)
-    setStagedSource(null)
-    onChange(draftRef.current)
-  }
   const saveEdit = () => {
     if (editing) {
       const item = items.find(i => i.key === editing.key)
@@ -920,21 +978,7 @@ export function TrackingEditForm({ entry, draft, onChange }: {
   const menuOwn = !!menuItem && !!me && menuItem.by === me
 
   return (
-    <div className="space-y-4">
-      <section>
-        <PageSectionHeader>BRN</PageSectionHeader>
-        <SectionCard>
-          <BrnPinInput
-            value={draft.brn}
-            onChange={brn => onChange({ ...draft, brn })}
-            spread
-            autoFocus={!entry}
-          />
-        </SectionCard>
-      </section>
-
-      <section>
-        <PageSectionHeader>Activity</PageSectionHeader>
+    <>
         {/* History rides the thread (no menu on those bubbles). */}
         <CommentThread
           items={items}
@@ -945,67 +989,9 @@ export function TrackingEditForm({ entry, draft, onChange }: {
           onSaveEdit={saveEdit}
           onCancelEdit={() => setEditing(null)}
         />
-        {/* Chat composer (ChatDetailView idiom): + | input | send. No voice. */}
         <div className="mt-2">
-          <input ref={photoInputRef} type="file" accept="image/*" onChange={onPhoto} className="hidden" />
-          <input ref={docInputRef} type="file" onChange={onDoc} className="hidden" />
-          <UploadChip
-            task={upload.task}
-            onDismiss={() => releaseStaged(true)}
-            onRetry={stagedSource ? () => void runUpload(stagedSource) : undefined}
-          />
-          <div className="flex items-end gap-2">
-            <button
-              ref={attachBtnRef}
-              onClick={() => setAttachOpen(true)}
-              aria-label="Attach"
-              className={`w-10 h-10 rounded-full bg-themewhite2/90 dark:bg-themewhite3/90 flex items-center justify-center active:scale-95 transition-all shrink-0
-                          ${attachOpen ? 'rotate-45' : ''}`}
-            >
-              <Plus size={18} className="text-tertiary" />
-            </button>
-            <div className="chat-input-bar relative flex flex-1 items-center rounded-[22px] border border-themeblue3/20 shadow-xs bg-themewhite
-                focus-within:border-themeblue1/40 focus-within:bg-themewhite2 transition-all duration-300">
-              <textarea
-                ref={inputRef}
-                rows={1}
-                value={draft.newComment}
-                maxLength={COMMENT_MAX_CHARS}
-                onChange={e => onChange({ ...draft, newComment: e.target.value })}
-                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
-                placeholder={upload.task ? 'Add a comment...' : 'Type a comment...'}
-                aria-label="Comment"
-                className="w-full bg-transparent outline-none text-[12pt] text-tertiary px-3.5 py-2.5
-                    rounded-[22px] min-w-0 placeholder:text-tertiary resize-none leading-snug"
-              />
-            </div>
-            {canSend && (
-              <button
-                onClick={send}
-                aria-label="Send"
-                className="animate-spring-in w-10 h-10 rounded-full bg-themeblue3 flex items-center justify-center active:scale-95 transition-all shrink-0"
-              >
-                <ArrowUp size={18} className="text-white" />
-              </button>
-            )}
-          </div>
+          <CommentComposer draft={draft} onChange={onChange} />
         </div>
-        <SharedObjectPicker
-          isOpen={attachOpen}
-          anchorRef={attachBtnRef}
-          clinicId={null}
-          onClose={() => setAttachOpen(false)}
-          onPickPhoto={() => photoInputRef.current?.click()}
-          onPickFile={() => docInputRef.current?.click()}
-        />
-        <ImageEditor
-          file={editFile}
-          onCancel={() => setEditFile(null)}
-          onConfirm={(edited, original) => {
-            setEditFile(null)
-            stage({ kind: 'image', file: edited, original, preview: URL.createObjectURL(edited) })
-          }}
-        />
         {/* The chat's message menu: lifted bubble clone with the list beneath;
             cursor pill when no rect was captured. */}
         {menu && (menu.rect && menu.cloneHtml ? (
@@ -1022,8 +1008,7 @@ export function TrackingEditForm({ entry, draft, onChange }: {
         ) : (
           <ContextMenu x={menu.x} y={menu.y} items={menuItems} onClose={() => setMenu(null)} />
         ))}
-      </section>
-    </div>
+    </>
   )
 }
 
@@ -1049,6 +1034,7 @@ const sendSub = (l: TrackingLink) => (l.iSend ? (l.theyReceive ? 'Receiving your
 export function TrackingBoardSettings(h: TrackingSettingsHandlers) {
   const { net } = useBoardScope()
   const swipe = useTrackingSwipeActions()
+  const isTouch = useIsTouch()
   // Receive rows only for clusters sending to us (or still on) — nothing to accept otherwise.
   const receivable = (h.links ?? []).filter(l => l.theySend || l.iReceive)
 
@@ -1075,13 +1061,15 @@ export function TrackingBoardSettings(h: TrackingSettingsHandlers) {
   return (
     <div className="px-5 py-4 space-y-6">
       {/* Card swipe bindings — Messaging's swipe picker, tracking actions. */}
-      <SwipeBindingPicker
-        value={swipe}
-        pool={TRACKING_SWIPE_POOL}
-        display={TRACKING_SWIPE_DISPLAY}
-        off="off"
-        onChange={setTrackingSwipeActions}
-      />
+      {isTouch && (
+        <SwipeBindingPicker
+          value={swipe}
+          pool={TRACKING_SWIPE_POOL}
+          display={TRACKING_SWIPE_DISPLAY}
+          off="off"
+          onChange={setTrackingSwipeActions}
+        />
+      )}
 
       {/* Sharing — per cluster. A link runs only when this cluster sends AND the
           other receives: the receiver gets these stations on its board and a

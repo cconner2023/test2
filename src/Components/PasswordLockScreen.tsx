@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { Lock, Lightbulb, X, Check, ScanFace } from 'lucide-react'
+import { Lightbulb, X, Check, ScanFace } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { verifyPasswordLocally, storePasswordHash } from '../lib/authService'
 import { isBiometricAvailable, isBiometricEnrolled, verifyBiometric } from '../lib/biometricService'
@@ -12,6 +12,7 @@ import { LoadingOverlay } from '@/Components/primitives/LoadingOverlay'
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
 import { FORGOT_PREFILL_KEY } from './LoginScreen'
 import { DeviceLinkQrView } from './DeviceLinkQrView'
+import { AuthBackdrop, AuthHeader, AUTH_CARD } from './AuthChrome'
 
 interface PasswordLockScreenProps {
   onUnlock: () => void
@@ -240,36 +241,21 @@ export const PasswordLockScreen = ({ onUnlock, email, reason = 'inactivity' }: P
   return (
     <>
     <div
-      className="fixed inset-0 z-30 bg-themewhite overflow-y-auto select-none"
+      className="fixed inset-0 z-30 bg-themewhite dark:bg-themewhite3 overflow-y-auto select-none"
       style={{ paddingTop: 'var(--sat)', paddingBottom: 'var(--sab)' }}
     >
-      <div className="min-h-full flex flex-col items-center justify-center py-8 px-6">
+      <AuthBackdrop />
+      <div className="relative min-h-full flex flex-col items-center justify-center py-8 px-6">
       <div className="w-full max-w-sm relative">
         <LoadingOverlay visible={submitting} className="rounded-2xl" />
-        {/* Header */}
-        <div className="flex flex-col items-center mb-8">
-          <div className="w-14 h-14 rounded-full bg-themeblue2/10 flex items-center justify-center mb-4">
-            <Lock size={26} className="text-themeblue2" />
-          </div>
-          <h1 className="text-xl font-bold text-primary tracking-wide">ADTMC</h1>
-          <p className="text-sm text-tertiary mt-1 text-center">
-            {reason === 'initial'
-              ? 'Enter your password to continue'
-              : reason === 'session-expired'
-              ? 'Your session has expired. Re-enter your password to continue.'
-              : reason === 'vault'
-              ? 'Encrypted messages are waiting. Re-enter your password to unlock them.'
-              : reason === 'locked'
-              ? 'Locked — enter your password to continue'
-              : 'Session locked due to inactivity'}
-          </p>
-        </div>
-
-        {/* Account */}
-        <div className="mb-3 px-1">
-          <p className="text-[9pt] font-semibold text-secondary tracking-widest uppercase">Account</p>
-          <p className="text-sm text-primary mt-0.5 truncate">{email}</p>
-        </div>
+        <AuthHeader
+          className="mb-8"
+          title={reason === 'session-expired' ? 'Session expired'
+            : reason === 'vault' ? 'Messages waiting'
+            : reason === 'initial' ? 'Welcome back'
+            : 'Locked'}
+          subtitle={<span className="block truncate">{email}</span>}
+        />
 
         {/* Error */}
         <ErrorDisplay message={error} centered />
@@ -281,7 +267,7 @@ export const PasswordLockScreen = ({ onUnlock, email, reason = 'inactivity' }: P
 
         {/* Password form */}
         <form onSubmit={handleSubmit}>
-          <div className="rounded-2xl bg-themewhite2 overflow-hidden">
+          <div className={AUTH_CARD}>
             <PasswordInput
               value={password}
               onChange={setPassword}

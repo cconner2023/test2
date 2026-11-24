@@ -84,6 +84,7 @@ export const hooks = {
   usePageVisibility:      { path: 'Hooks/usePageVisibility.ts',      stores: [], services: [], purpose: 'Track page visibility via document.visibilityState' },
   useGeolocation:         { path: 'Hooks/useGeolocation.ts',         stores: [], services: [], purpose: 'Browser geolocation with MGRS grid conversion' },
   useImagePaste:          { path: 'Hooks/useImagePaste.ts',          stores: [], services: [], purpose: 'Clipboard paste listener for image files' },
+  useMediaPickers:        { path: 'Hooks/useMediaPickers.tsx',       stores: [], services: ['lib/signal/attachmentService'], purpose: 'Shared photo/file pickers, crop review, file paste, media upload' },
   useVoiceRecorder:       { path: 'Hooks/useVoiceRecorder.ts',       stores: [], services: ['Utilities/voiceUtils'], purpose: 'Audio recording with amplitude tracking (max 120s)' },
 
   // ─── Realtime / Subscriptions ──────────────────────────────────

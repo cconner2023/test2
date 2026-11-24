@@ -55,7 +55,6 @@ export function OverviewWidgetsPanel() {
         if (isOn) {
             save(active.filter(w => w !== id))
         } else {
-            if (active.length >= 3) return
             save([...active, id])
         }
     }
@@ -66,7 +65,7 @@ export function OverviewWidgetsPanel() {
         <SettingsPage className="h-full">
             <SettingsColumn>
                 <p className="order-1 text-[10pt] text-tertiary leading-relaxed">
-                    Choose up to 3 widgets shown in the mission overview. Hiding it removes the panel from the home screen.
+                    Choose the widgets shown in the mission overview. Hiding it removes the panel from the home screen.
                 </p>
 
                 <div className="order-2 rounded-2xl overflow-hidden">
@@ -84,15 +83,14 @@ export function OverviewWidgetsPanel() {
             <SettingsColumn>
                 {isVisible && (
                     <div className="order-3">
-                        <SectionHeader trailing={<p className="text-[9pt] text-tertiary">{active.length} / 3</p>}>
+                        <SectionHeader trailing={<p className="text-[9pt] text-tertiary">{active.length} / {widgetOrder.length}</p>}>
                             Widgets
                         </SectionHeader>
                         <SectionCard>
                             {widgetOrder.map((id, idx) => {
                                 const meta = OVERVIEW_WIDGET_META[id]
                                 const isOn = active.includes(id)
-                                const atLimit = active.length >= 3
-                                const isDisabled = !!meta.disabled || (!isOn && atLimit)
+                                const isDisabled = !!meta.disabled
 
                                 return (
                                     <SettingsRow

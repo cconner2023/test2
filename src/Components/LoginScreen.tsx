@@ -3,6 +3,7 @@ import { useSpring, animated } from '@react-spring/web'
 import { Check, X, RefreshCw, ArrowLeft, ChevronLeft } from 'lucide-react'
 import { DeviceLinkQrView } from './DeviceLinkQrView'
 import { LoginArt } from './LoginArt'
+import { AuthBackdrop, AuthHeader, BrandMark, ScreenTitle, AUTH_CARD as CARD } from './AuthChrome'
 import { LoadingSpinner } from '@/Components/primitives/LoadingSpinner'
 import { HudLoader } from '@/Components/primitives/HudLoader'
 import { StackBody } from '@/Components/primitives/StackBody'
@@ -200,42 +201,77 @@ export function LoginScreen() {
     setLoading(false)
   }
 
-  return (
-    <div className="fixed inset-0 z-30 bg-themewhite dark:bg-themewhite3 overflow-y-auto lg:overflow-hidden lg:flex"
-      style={{ paddingTop: 'var(--sat)', paddingBottom: 'var(--sab)' }}>
+  const title = view === 'signin' ? (remembered ? 'Welcome back' : '')
+    : view === 'help' ? 'Contact support'
+    : view === 'request' ? 'Request account'
+    : 'Reset password'
+  const subtitle: ReactNode = view === 'signin'
+    ? (remembered && mode === 'password'
+      ? (
+        <span className="inline-flex items-baseline gap-2 min-w-0 max-w-full">
+          <span className="truncate">{remembered}</span>
+          <button
+            type="button"
+            onClick={forgetIdentity}
+            className="shrink-0 not-italic text-themeblue2 dark:text-themeblue1 hover:underline active:scale-95 transition-transform"
+          >
+            Not you?
+          </button>
+        </span>
+      )
+      : TAGLINE)
+    : null
 
-      {/* Desktop brand lockup, pinned to the screen's top-left corner rather than the
-          brand pane's padding. Absolute top ignores the root's safe-area padding, so
-          --sat is added back by hand. */}
+  const handleBack = () => {
+    if (pushed.length > 0) nav.pop()
+    else backToSignin()
+  }
+
+  return (
+    <div className="fixed inset-0 z-30 bg-themewhite dark:bg-themewhite3 overflow-y-auto flex flex-col lg:flex-row lg:overflow-hidden lg:pt-[var(--sat)]"
+      style={{ paddingBottom: 'var(--sab)' }}>
+
+      {/* Desktop brand lockup, pinned to the screen's top-left corner. */}
       <header className="hidden lg:flex absolute z-10 left-4 top-[calc(var(--sat)+1rem)] items-center gap-3">
         <BrandMark className="shrink-0 w-10 h-10" />
         <p className="text-[10pt] text-secondary leading-snug max-w-[220px]">
-          Medical Knowledge Repository and Operational Network
+          {TAGLINE}
         </p>
       </header>
 
-      {/* Desktop brand pane: art and disclaimer only; it stays fixed while the
-          form pane scrolls (request view is tall). */}
+      {/* Desktop brand pane: stays fixed while the form pane scrolls. */}
       <aside className="relative overflow-hidden hidden lg:flex lg:w-[45%] shrink-0 flex-col justify-end px-12 py-10 bg-themewhite2 dark:bg-themewhite border-r border-primary/6">
-        <LoginArt className="absolute inset-0 w-full h-full pointer-events-none" />
+        <LoginArt className="absolute inset-0 w-full h-full pointer-events-none" fog />
         <Disclaimer className="relative max-w-sm text-[9pt] text-tertiary" />
       </aside>
 
-      {/* Form pane: the whole screen on mobile/tablet, the right pane on desktop.
-          Background matches the "or" divider's label fill, so keep them in step. */}
-      <div className="min-h-full flex flex-col items-center justify-center py-8 px-4 lg:justify-start lg:flex-1 lg:min-w-0 lg:min-h-0 lg:h-full lg:overflow-y-auto lg:py-12 lg:px-12">
+      <AuthBackdrop className="lg:hidden" />
+
+      {view !== 'signin' && (
+        <button
+          type="button"
+          onClick={handleBack}
+          aria-label="Back"
+          className="lg:hidden absolute left-3 top-[calc(var(--sat)+0.75rem)] z-10 w-9 h-9 rounded-full flex items-center justify-center text-primary active:scale-95 transition-all"
+        >
+          <ArrowLeft size={20} />
+        </button>
+      )}
+
+      {/* Mobile hero: centered mark + title over the art. */}
+      <section className="relative lg:hidden mt-auto px-5 pb-5"
+        style={{ paddingTop: 'calc(var(--sat) + 3.5rem)' }}>
+        <AuthHeader title={title} subtitle={subtitle} small={view === 'request'} />
+      </section>
+
+      {/* Form pane: under the hero on mobile, the right pane on desktop. */}
+      <div className="relative mb-auto flex flex-col items-center px-5 pt-0 pb-8 lg:mb-0 lg:justify-start lg:flex-1 lg:min-w-0 lg:min-h-0 lg:h-full lg:overflow-y-auto lg:py-12 lg:px-12">
         <div className="w-full max-w-sm lg:max-w-[400px] lg:my-auto">
-          {/* Branding (mobile only; desktop shows the top-left lockup) */}
-          <div className={`text-center lg:hidden ${view === 'request' ? 'mb-6' : 'mb-8'}`}>
-            <BrandMark className={`mx-auto mb-2 transition-all duration-300 ease-out ${view === 'request' ? 'w-10 h-10' : 'w-17 h-17'}`} />
-            <h1 className="text-xl font-semibold tracking-[2px] text-themeblue2 dark:text-themeblue1">
-              {view !== 'request' && <div className='text-[10pt] text-secondary'>Medical Knowledge Repository and Operational Network</div>}
-            </h1>
-          </div>
+          {(title || subtitle !== TAGLINE) && (
+            <ScreenTitle title={title} subtitle={subtitle === TAGLINE ? null : subtitle} className="hidden lg:block mb-6" />
+          )}
 
-
-          {/* Sign-in failures render on the password field instead; a detached
-              banner above the card reads as untrusted chrome. */}
+          {/* Sign-in failures render on the password field instead. */}
           {error && view !== 'signin' && <div className="mb-3"><ErrorDisplay message={error} /></div>}
 
           {/* ── View-level morph — one card slides + height-morphs between screens.
@@ -246,20 +282,6 @@ export function LoginScreen() {
             {/* ── Sign In ── */}
             {view === 'signin' && (
               <div>
-                <div className="pb-2 flex items-baseline justify-between gap-3">
-                  <p className="text-[9pt] font-semibold text-secondary tracking-widest uppercase">
-                    {remembered ? 'Welcome back' : 'Sign In'}
-                  </p>
-                  {remembered && mode === 'password' && (
-                    <button
-                      type="button"
-                      onClick={forgetIdentity}
-                      className="shrink-0 text-[9pt] text-themeblue2 dark:text-themeblue1 hover:underline active:scale-95 transition-transform"
-                    >
-                      Not you?
-                    </button>
-                  )}
-                </div>
                 <form onSubmit={handleSignIn}>
                   {/* Whole card collapses to a HUD puck and re-expands when the
                       Password ⇄ Link Device mode flips (both directions). */}
@@ -310,8 +332,6 @@ export function LoginScreen() {
                         }`}>
                           <button
                             type="button"
-                            // Resets to the smart default rather than to blank — clearing a
-                            // mistyped password shouldn't cost you the remembered address.
                             onClick={() => { setEmail(remembered); setPassword(''); setError(null) }}
                             className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
                           >
@@ -332,18 +352,19 @@ export function LoginScreen() {
                       </div>
                     )}
                   </HudCardMorph>
-                </form>
 
-                {mode === 'password' && (
-                  <div className="flex items-center justify-center mt-2 px-1">
-                    <button
-                      onClick={() => go('forgot-email', 1)}
-                      className="text-[10pt] text-themeblue2 dark:text-themeblue1 hover:underline active:scale-95 transition-transform"
-                    >
-                      Forgot password?
-                    </button>
-                  </div>
-                )}
+                  {mode === 'password' && (
+                    <div className="flex items-center justify-end mt-2 px-1">
+                      <button
+                        type="button"
+                        onClick={() => go('forgot-email', 1)}
+                        className="text-[10pt] text-themeblue2 dark:text-themeblue1 hover:underline active:scale-95 transition-transform"
+                      >
+                        Forgot password?
+                      </button>
+                    </div>
+                  )}
+                </form>
 
                 {/* Footer — guest / request / support, shared by the signin family */}
                 <SigninFooter onGuest={continueAsGuest} onRequest={() => go('request', 1)} onHelp={openHelp} />
@@ -353,10 +374,7 @@ export function LoginScreen() {
             {/* ── Forgot password — step 1: email ── */}
             {view === 'forgot-email' && (
               <div>
-                <div className="pb-2">
-                  <p className="text-[9pt] font-semibold text-secondary tracking-widest uppercase">Reset Password</p>
-                </div>
-                <div className="rounded-2xl bg-themewhite2 overflow-hidden">
+                <div className={CARD}>
                   <p className="px-4 pt-3 pb-2 text-[10pt] text-secondary leading-relaxed border-b border-primary/6">
                     Enter your email - if an account exists you'll receive a password reset link. Open it on this device to set a new password.
                   </p>
@@ -394,10 +412,7 @@ export function LoginScreen() {
             {/* ── Forgot password — step 2: link sent ── */}
             {view === 'forgot-sent' && (
               <div>
-                <div className="pb-2">
-                  <p className="text-[9pt] font-semibold text-secondary tracking-widest uppercase">Reset Password</p>
-                </div>
-                <div className="rounded-2xl bg-themewhite2 overflow-hidden">
+                <div className={CARD}>
                   <p className="px-4 pt-3 pb-3 text-[10pt] text-secondary leading-relaxed border-b border-primary/6">
                     If an account exists for <span className="font-medium text-primary">{email}</span>, a password reset link is on its way. Open it on this device to set a new password — the link expires in 24 hours.
                   </p>
@@ -427,12 +442,9 @@ export function LoginScreen() {
             {/* ── Help / Support ── */}
             {view === 'help' && (
               <div>
-                <div className="pb-2">
-                  <p className="text-[9pt] font-semibold text-secondary tracking-widest uppercase">Contact Support</p>
-                </div>
                 {helpSubmitted ? (
                   <>
-                    <div className="rounded-xl bg-themewhite2 overflow-hidden px-4 py-3">
+                    <div className={`${CARD} px-4 py-3`}>
                       <p className="text-[10pt] text-secondary">
                         We'll review your message and get back to you at {helpEmail}.
                       </p>
@@ -443,7 +455,7 @@ export function LoginScreen() {
                   </>
                 ) : (
                   <form onSubmit={handleSupportSubmit}>
-                    <div className="rounded-2xl bg-themewhite2 overflow-hidden">
+                    <div className={CARD}>
                       <p className="px-4 pt-3 pb-2 text-[10pt] text-secondary leading-relaxed border-b border-primary/6">
                         No account needed to reach us. Describe what happened and we'll reply to the address below — include the error text if you saw one.
                       </p>
@@ -520,18 +532,7 @@ export function LoginScreen() {
   )
 }
 
-/** The three-bar mark, sized by the caller. */
-function BrandMark({ className = '' }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <g transform="translate(20,20)">
-        <rect x="-3" y="-11" width="6" height="22" rx="1.5" className="fill-themeblue3" />
-        <rect x="-3" y="-11" width="6" height="22" rx="1.5" className="fill-themeblue3" transform="rotate(60)" />
-        <rect x="-3" y="-11" width="6" height="22" rx="1.5" className="fill-themeblue3" transform="rotate(120)" />
-      </g>
-    </svg>
-  )
-}
+const TAGLINE = 'Medical Knowledge Repository and Operational Network'
 
 function Disclaimer({ className = '' }: { className?: string }) {
   return (
@@ -661,7 +662,7 @@ function HudCardMorph({ morphKey, ready = true, children }: { morphKey: string; 
   return (
     <div ref={rootRef} className="w-full">
       <animated.div
-        className="rounded-2xl bg-themewhite2 overflow-hidden relative mx-auto"
+        className={`${CARD} relative mx-auto`}
         style={active ? { width: morph.width, height: morph.height } : undefined}
       >
         <animated.div
@@ -713,7 +714,7 @@ function PickerScreen({ screen, nav }: { screen: StackScreen; nav: StackNav }) {
         </button>
         <p className="text-[9pt] font-semibold text-secondary tracking-widest uppercase truncate">{title}</p>
       </div>
-      <div className="rounded-2xl bg-themewhite2 overflow-hidden">
+      <div className={CARD}>
         {body}
       </div>
     </div>
@@ -724,26 +725,23 @@ function PickerScreen({ screen, nav }: { screen: StackScreen; nav: StackNav }) {
 function SigninFooter({ onGuest, onRequest, onHelp }: { onGuest: () => void; onRequest: () => void; onHelp: () => void }) {
   return (
     <>
-      <div className="relative my-3">
-        <div className="absolute inset-0 flex items-center">
-          <div className="w-full border-t border-themeblue3/10" />
-        </div>
-        <div className="relative flex justify-center text-[10pt]">
-          <span className="px-3 bg-themewhite dark:bg-themewhite3 text-secondary">or</span>
-        </div>
+      <div className="flex items-center gap-3 my-4 text-[10pt] text-secondary italic">
+        <div className="flex-1 border-t border-themeblue3/15" />
+        or
+        <div className="flex-1 border-t border-themeblue3/15" />
       </div>
 
       <div className="flex gap-3">
         <button
           onClick={onGuest}
-          className="flex-1 px-4 py-3 rounded-full border border-themeblue3/10 shadow-xs text-primary text-sm
+          className="flex-1 px-4 py-3 rounded-full border border-themeblue3/10 bg-themewhite2/60 backdrop-blur-sm shadow-xs text-primary text-sm
                  font-medium active:scale-95 transition-all"
         >
           Continue as Guest
         </button>
         <button
           onClick={onRequest}
-          className="flex-1 px-4 py-3 rounded-full border border-themeblue3/10 shadow-xs text-primary text-sm
+          className="flex-1 px-4 py-3 rounded-full border border-themeblue3/10 bg-themewhite2/60 backdrop-blur-sm shadow-xs text-primary text-sm
                  font-medium active:scale-95 transition-all"
         >
           Request Account

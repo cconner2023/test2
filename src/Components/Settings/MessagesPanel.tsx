@@ -8,7 +8,6 @@ import { MobilePageHeader, ConversationTitlePill, ConversationActionsReserve } f
 import { ConversationIntroCard } from '../Messages/ConversationIntroCard'
 import { RailSearchRow } from '@/Components/primitives/RailSearchRow'
 import { DesktopRail } from '@/Components/primitives/DesktopRail'
-import { FooterPill } from '@/Components/primitives/FooterPill'
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
 import { useClinicMedics } from '../../Hooks/useClinicMedics'
 import { useMessagesContext } from '../../Hooks/MessagesContext'
@@ -33,8 +32,8 @@ import { useClinicGroupedMedics } from '../../Hooks/useClinicGroupedMedics'
 import { useSubClusters } from '../../Hooks/useSubClusters'
 import { usePeerAvailability, type UnavailableReason } from '../../Hooks/usePeerAvailability'
 import { ChatDetailView, type ParticipantStatus } from '../ChatDetailView'
-import { OutsideEntityConversation } from '../Messages/OutsideEntityConversation'
-import { OverlayStack, type StackNav } from '@/Components/primitives/OverlayStack'
+import { OutsideEntityConversation, type DraftPayload } from '../Messages/OutsideEntityConversation'
+import { PaneStack, type StackNav } from '@/Components/primitives/PaneStack'
 import { ActionButton } from '@/Components/primitives/ActionButton'
 import { useLongPress } from '../../Hooks/useLongPress'
 import { useIsMobile } from '../../Hooks/useIsMobile'
@@ -44,11 +43,10 @@ import type { MessageContent } from '../../lib/signal/messageContent'
 import { displayGroupName, type GroupInfo, type GroupMember } from '../../lib/signal/groupTypes'
 import { useContactPicker, type ContactPickerTarget } from '../Messages/useContactPicker'
 import { TextInput } from '@/Components/primitives/FormInputs'
-import { ExpandableInput } from '@/Components/primitives/ExpandableInput'
-import { useMergedNoteContent } from '../../Hooks/useMergedNoteContent'
 import { listIntakeLines } from '../../lib/eventIntakeService'
 import { getWarmLines, setWarmLines } from '../../lib/messagingSettingsWarm'
-import { createOutboundOutsideEntity, sendOutsideEntityReply, isMilEmail, MIL_UNSUPPORTED_MESSAGE } from '../../lib/outsideEntityService'
+import { emitErrorToast } from '../../lib/errorFeedback'
+import { createOutboundOutsideEntity, sendOutsideEntityReply, sendOutsideEntityAttachment, isMilEmail, MIL_UNSUPPORTED_MESSAGE } from '../../lib/outsideEntityService'
 import { getAllOutsideEntityChannels, migrateLegacyChannelKeys, type OutsideEntityChannel } from '../../lib/outsideEntityChannelStore'
 import { saveMessage } from '../../lib/signal/messageStore'
 import { SYSTEM_USER_ID } from '../../lib/signal/systemIdentity'
@@ -1095,13 +1093,15 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
   // let the medic type a free label — from_label is always the clinic/cluster name.
   const clusterName = ((useAuthStore(s => s.profile.clinicName) ?? '').trim()) || 'Medical section'
   const [outEmail, setOutEmail] = useState('')
-  const [outMsg, setOutMsg] = useState('')
-  // Personal + subscribed-clinic expanders, same corpus the note editors use — the
-  // outbound body is free text a medic types by hand, so it gets the same shortcuts.
-  const { expanders } = useMergedNoteContent()
-  const [outBusy, setOutBusy] = useState(false)
   const [outError, setOutError] = useState<string | null>(null)
-  const resetOutbound = useCallback(() => { setOutEmail(''); setOutMsg(''); setOutError(null); setOutBusy(false) }, [])
+  const resetOutbound = useCallback(() => { setOutEmail(''); setOutError(null) }, [])
+  // Unsent outbound conversation. Nothing exists server-side until the first send.
+  const [outDraft, setOutDraft] = useState<ClinicMedic | null>(null)
+  const selectedPeerRef = useRef(selectedPeerId)
+  selectedPeerRef.current = selectedPeerId
+  useEffect(() => {
+    if (outDraft && selectedPeerId !== outDraft.id) setOutDraft(null)
+  }, [outDraft, selectedPeerId])
   // Military recipients are refused outright — flagged as the medic types so Send
   // never arms on an address the service and the edge fn will both reject.
   const outMil = isMilEmail(outEmail)
@@ -1219,10 +1219,10 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
     )
   }, [medics, peerProfiles, conversations, selectedPeerId])
 
-  const allMedics = useMemo(
-    () => (peerExtras.length === 0 ? medics : [...medics, ...peerExtras]),
-    [medics, peerExtras],
-  )
+  const allMedics = useMemo(() => {
+    const extras = outDraft ? [...peerExtras, outDraft] : peerExtras
+    return extras.length === 0 ? medics : [...medics, ...extras]
+  }, [medics, peerExtras, outDraft])
 
   // Batch-check which contacts have active devices
   const medicIds = useMemo(() => allMedics.map(m => m.id), [allMedics])
@@ -1288,80 +1288,118 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
     void Promise.resolve(ctxDeleteConversation(key)).then(refreshOutsideChannels)
   }, [ctxDeleteConversation, refreshOutsideChannels])
 
-  // Mint an outbound outside-contact channel + email the invite, then file the
-  // local anchor card and open it. The channel KEY goes to outsideEntityChannelStore,
-  // not the card. The card buckets under recipientId=entity_id; a peerProfile gives
-  // it a real title.
-  const handleCreateOutbound = useCallback(async () => {
-    const email = outEmail.trim()
-    if (!outboundClinicId || !currentUserId || !email.includes('@') || outBusy) return
+  // Email screen opens a local draft conversation; no channel, no invite yet.
+  const handleOpenOutbound = useCallback(() => {
+    const email = outEmail.trim().toLowerCase()
+    if (!email.includes('@')) return
     if (isMilEmail(email)) { setOutError(MIL_UNSUPPORTED_MESSAGE); return }
-    setOutBusy(true)
-    setOutError(null)
-    const res = await createOutboundOutsideEntity({ clinicId: outboundClinicId, recipientEmail: email, fromLabel: clusterName })
-    if (!res.ok) { setOutBusy(false); setOutError(res.error); return }
-    const { content, channel } = res.data
-    setOutsideChannels(prev => ({ ...prev, [channel.entity_id]: channel }))
+    const draft: ClinicMedic = {
+      id: `outbound-draft-${crypto.randomUUID()}`,
+      firstName: email,
+      lastName: null, middleInitial: null, rank: null, credential: null, avatarId: null,
+      outsideFromLabel: clusterName,
+    }
+    setOutDraft(draft)
+    resetOutbound()
+    setShowNewMsg(false)
+    picker.reset()
+    onSelectPeer(draft)
+  }, [outEmail, clusterName, resetOutbound, picker, onSelectPeer])
 
-    const now = new Date().toISOString()
+  // First send mints the channel + emails the invite. Memoized per draft so the
+  // text half of an attachment+text send reuses the same channel.
+  // The channel KEY goes to outsideEntityChannelStore, not the card.
+  const draftMintRef = useRef(new Map<string, Promise<{ channel: OutsideEntityChannel } | { error: string }>>())
+  const mintDraft = useCallback((draftId: string, email: string) => {
+    const existing = draftMintRef.current.get(draftId)
+    if (existing) return existing
+    const run = (async (): Promise<{ channel: OutsideEntityChannel } | { error: string }> => {
+      if (!outboundClinicId || !currentUserId) return { error: 'Could not send.' }
+      const res = await createOutboundOutsideEntity({ clinicId: outboundClinicId, recipientEmail: email, fromLabel: clusterName })
+      if (!res.ok) return { error: res.error ?? 'Could not send.' }
+      const { content, channel } = res.data
+      setOutsideChannels(prev => ({ ...prev, [channel.entity_id]: channel }))
+      const store = useMessagingStore.getState()
+      const now = new Date().toISOString()
+      // Anchor card — channel metadata only, no key. Hidden from the thread.
+      const anchor: DecryptedSignalMessage = {
+        id: crypto.randomUUID(),
+        senderId: currentUserId,
+        recipientId: content.entity_id,
+        plaintext: 'Secure email sent',
+        content,
+        messageType: 'message',
+        createdAt: now,
+        readAt: now,
+        status: 'sent',
+        originId: crypto.randomUUID(),
+      }
+      store.addMessage(anchor)
+      void saveMessage(anchor, currentUserId).catch(() => {})
+      // List row shows the recipient email; header shows the cluster name.
+      const profile: ClinicMedic = {
+        id: content.entity_id,
+        firstName: content.recipient_email || content.from_label || 'Outside contact',
+        lastName: null, middleInitial: null, rank: null, credential: null, avatarId: null,
+        outsideFromLabel: content.from_label || clusterName,
+      }
+      store.setPeerProfile(profile)
+      // Backed out mid-mint: keep the channel, don't yank them back.
+      if (selectedPeerRef.current === draftId) onSelectPeer(profile)
+      setOutDraft(null)
+      return { channel }
+    })()
+    draftMintRef.current.set(draftId, run)
+    void run.then(r => { if ('error' in r) draftMintRef.current.delete(draftId) })
+    return run
+  }, [outboundClinicId, currentUserId, clusterName, onSelectPeer])
+
+  // Optimistic bubble under the draft key, moved to the entity_id once minted.
+  const handleDraftSend = useCallback(async (draftId: string, email: string, payload: DraftPayload): Promise<string | null> => {
+    if (!currentUserId) return 'Could not send.'
     const store = useMessagingStore.getState()
-
-    // Anchor card — channel metadata only, no key. It exists so a brand-new channel
-    // has something in its conversation; deleting it blanks the thread and leaves the
-    // channel live, which is the whole point of moving the key out.
-    const msg: DecryptedSignalMessage = {
-      id: crypto.randomUUID(),
+    const localId = `local-${crypto.randomUUID()}`
+    const now = new Date().toISOString()
+    const optimistic: DecryptedSignalMessage = {
+      id: localId,
       senderId: currentUserId,
-      recipientId: content.entity_id,
-      plaintext: 'Secure email sent',
-      content,
+      recipientId: draftId,
+      plaintext: 'text' in payload ? payload.text : payload.preview,
+      content: 'text' in payload ? { type: 'text', text: payload.text } : payload.content,
       messageType: 'message',
       createdAt: now,
       readAt: now,
-      status: 'sent',
-      originId: crypto.randomUUID(),
+      status: 'sending',
+      originId: localId,
     }
-    store.addMessage(msg)
-    void saveMessage(msg, currentUserId).catch(() => {})
+    store.addMessage(optimistic)
 
-    // First message (optional) is an ORDINARY message, like every later one.
-    const first = outMsg.trim()
-    if (first) {
-      const sent = await sendOutsideEntityReply(channel, first)
-      if (sent.ok) {
-        const firstMsg: DecryptedSignalMessage = {
-          id: sent.data.id,
-          senderId: currentUserId,
-          recipientId: channel.entity_id,
-          plaintext: first,
-          content: { type: 'text', text: first },
-          messageType: 'message',
-          createdAt: sent.data.created_at || now,
-          readAt: now,
-          status: 'sent',
-          originId: sent.data.id,
-        }
-        store.addMessage(firstMsg)
-        void saveMessage(firstMsg, currentUserId).catch(() => {})
-      }
+    const minted = await mintDraft(draftId, email)
+    store.removeOptimisticMessage(draftId, localId)
+    if ('error' in minted) return minted.error
+    const { channel } = minted
+    store.addMessage({ ...optimistic, recipientId: channel.entity_id })
+
+    const sent = 'text' in payload
+      ? await sendOutsideEntityReply(channel, payload.text)
+      : await sendOutsideEntityAttachment(channel, payload.content)
+    store.removeOptimisticMessage(channel.entity_id, localId)
+    if (!sent.ok) {
+      emitErrorToast('Couldn’t send', sent.error ?? 'The message did not send. Try again.')
+      return null
     }
-    // Title the synthetic peer. The conversation LIST row shows the recipient email
-    // (who the medic is talking to); the conversation HEADER shows the cluster name
-    // (what the recipient sees as the sender), carried on outsideFromLabel. Its
-    // presence also routes this conversation to OutsideEntityConversation.
-    const profile: ClinicMedic = {
-      id: content.entity_id,
-      firstName: content.recipient_email || content.from_label || 'Outside contact',
-      lastName: null, middleInitial: null, rank: null, credential: null, avatarId: null,
-      outsideFromLabel: content.from_label || clusterName,
+    const final: DecryptedSignalMessage = {
+      ...optimistic,
+      id: sent.data.id,
+      recipientId: channel.entity_id,
+      createdAt: sent.data.created_at || now,
+      status: 'sent',
+      originId: sent.data.id,
     }
-    store.setPeerProfile(profile)
-    setOutBusy(false)
-    resetOutbound()
-    setShowNewMsg(false)
-    setNewMsgMode('contacts')
-    onSelectPeer(profile)
-  }, [outEmail, outMsg, outBusy, outboundClinicId, currentUserId, clusterName, resetOutbound, onSelectPeer])
+    store.addMessage(final)
+    void saveMessage(final, currentUserId).catch(() => {})
+    return null
+  }, [currentUserId, mintDraft])
 
   // Fade transition for the right content area when view changes.
   const prevViewRef = useRef(view)
@@ -1445,15 +1483,18 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
     // message: messages are deletable and the channel must survive an emptied
     // thread, so a message can no longer be the routing signal.
     const outsideChannel = outsideChannels[selectedPeerId]
+    const draftOpen = outDraft?.id === selectedPeerId
     const peer = allMedics.find(m => m.id === selectedPeerId)
     const peerName = peer
       ? [peer.rank, peer.lastName].filter(Boolean).join(' ') || peer.firstName || undefined
       : undefined
 
-    mainContent = outsideChannel ? (
+    mainContent = outsideChannel || draftOpen ? (
       <OutsideEntityConversation
-        channel={outsideChannel}
-        clusterName={outsideChannel.from_label || peer?.outsideFromLabel || clusterName}
+        key={selectedPeerId}
+        channel={outsideChannel ?? null}
+        draft={draftOpen && outDraft ? { id: outDraft.id, email: outDraft.firstName ?? '', send: (p) => handleDraftSend(outDraft.id, outDraft.firstName ?? '', p) } : undefined}
+        clusterName={outsideChannel?.from_label || peer?.outsideFromLabel || clusterName}
         conversations={conversations}
         medics={allMedics}
         sendMessage={sendMessage}
@@ -1589,17 +1630,11 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
 
       {/* New Message / New Group / Add-contact — one card that morphs between
           screens (drill-down primitive) instead of a boolean/ternary machine. */}
-      <OverlayStack
+      <PaneStack
         isOpen={showNewMsg}
         onClose={() => { setShowNewMsg(false); picker.reset(); resetOutbound() }}
-        anchorRect={null}
         initial={{ key: 'main' }}
         navRef={stackNavRef}
-        previewMaxHeight="50dvh"
-        // Invite mint + email is the one blocking step in this card, so it collapses
-        // to the HUD puck like every other saving surface rather than narrating
-        // itself in the email field's hint slot.
-        loading={outBusy}
         screens={{
           // Root (contact/group list + the New Group builder) and the off-roster
           // add drill both come from the shared recipient card.
@@ -1607,25 +1642,15 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
 
           // Outbound outside-contact compose (dev-gated) — email a secure 1:1 invite.
           outbound: {
-            title: 'Outbound Message',
+            title: 'Email Contact',
             onBack: (nav) => { resetOutbound(); nav.pop() },
-            rightFooter: (
-              <FooterPill side="right">
-                <ActionButton
-                  icon={Send}
-                  label="Send"
-                  variant={(!outEmail.trim().includes('@') || outMil || outBusy) ? 'disabled' : 'confirm'}
-                  onClick={() => void handleCreateOutbound()}
-                />
-              </FooterPill>
-            ),
+            headerActions: outEmail.trim().includes('@') && !outMil
+              ? <PillButton icon={Send} iconSize={18} accent="success" label="Open" onClick={handleOpenOutbound} />
+              : undefined,
             render: () => (
-              <div className="px-1 py-1 space-y-2">
-                <p className="px-2 pb-1 text-[10pt] text-tertiary leading-relaxed">
-                  Send secure messaging to users outside of the application. Military (.mil) addresses are not supported.
-                </p>
+              <div className="px-1 py-1">
                 <TextInput
-                  label="Recipient email"
+                  label="Email"
                   value={outEmail}
                   onChange={(v) => { setOutEmail(v); if (outError) setOutError(null) }}
                   placeholder="name@example.com"
@@ -1633,20 +1658,6 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
                   inputMode="email"
                   hint={outMil ? MIL_UNSUPPORTED_MESSAGE : outError}
                 />
-                {/* ExpandableInput rather than TextArea so abbreviations and
-                    templates expand here too; it owns no row chrome, so the
-                    surrounding label reproduces the TextArea row. */}
-                <label className="block border-b border-primary/6 last:border-b-0">
-                  <ExpandableInput
-                    value={outMsg}
-                    onChange={(v) => setOutMsg(v.slice(0, 2000))}
-                    expanders={expanders}
-                    multiline
-                    hideClear
-                    placeholder="Message"
-                    className="w-full min-h-[5rem] bg-transparent px-4 py-3 text-base md:text-sm text-primary placeholder:text-tertiary focus:outline-none resize-none leading-6"
-                  />
-                </label>
               </div>
             ),
           },

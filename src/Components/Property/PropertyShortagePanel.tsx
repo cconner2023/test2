@@ -5,7 +5,8 @@ import { SearchInput } from '@/Components/primitives/SearchInput'
 import { TreeRow, TreeRowCount } from '@/Components/primitives/TreeRow'
 import { usePropertyStore } from '../../stores/usePropertyStore'
 import { useDA2062Export } from '../../Hooks/useDA2062Export'
-import { Da2062Preview } from './Da2062Preview'
+import { PdfPreview } from '@/Components/primitives/PdfPreview'
+import type { CardMorphHost } from '@/Components/primitives/OverlayStack'
 import { computeShortages, type ShortageLine } from '../../Utilities/propertyShortage'
 import type { DA2062Params } from '../../Utilities/DA2062Export'
 import type { HolderInfo, LocalPropertyItem } from '../../Types/PropertyTypes'
@@ -28,6 +29,8 @@ interface PropertyShortagePanelProps {
   /** Locate a short line's item ON THE MAP: drops this book view, selects it on the
    *  canvas, breadcrumb → its parent zone. Wired to the host's handleSelectItem. */
   onLocate?: (item: LocalPropertyItem) => void
+  /** Host card/sheet the 2062 preview morphs into. */
+  cardHost?: CardMorphHost
 }
 
 /** A LIN's short lines grouped under it — the tree node. */
@@ -57,7 +60,7 @@ function annexHolder(displayName: string): HolderInfo {
  *  from the host header's direct Download pill (via the exportAnnex handle). Hosted in the
  *  Property right pane (desktop) / detail sheet (mobile) by PropertyPanel. */
 export const PropertyShortagePanel = forwardRef<PropertyShortageHandle, PropertyShortagePanelProps>(
-  function PropertyShortagePanel({ stagedTurnInIds, onLocate }, ref) {
+  function PropertyShortagePanel({ stagedTurnInIds, onLocate, cardHost }, ref) {
     const items = usePropertyStore(useShallow(s => s.items))
     const { exportDA2062, da2062Preview, downloadDA2062, clearDA2062Preview, status: da2062Status } = useDA2062Export()
 
@@ -209,7 +212,9 @@ export const PropertyShortagePanel = forwardRef<PropertyShortageHandle, Property
           })}
         </div>
 
-        <Da2062Preview
+        <PdfPreview
+          title="DA 2062"
+          cardHost={cardHost}
           preview={da2062Preview}
           generating={da2062Status === 'generating'}
           onDownload={downloadDA2062}

@@ -26,8 +26,7 @@ export type PatientIdForm = 'sf600' | 'dd689'
  * `active`; `submit` hands it straight to the exporter and it is never
  * persisted (no PHI at rest, none on the wire).
  *
- * Returns the form body so any surface can host it: PatientIdPopover,
- * or a drill-down screen of a PaneSurface (Imported Note).
+ * Returns the form body for useNoteExportFlow's patient screen.
  */
 export function usePatientIdDraft(active: boolean, form: PatientIdForm = 'sf600') {
   const [draft, setDraft] = useState<PatientIdentification>({ ...EMPTY })

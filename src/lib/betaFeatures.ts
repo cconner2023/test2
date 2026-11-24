@@ -39,8 +39,8 @@ export const BETA_FEATURES = {
   whisperNet: true,
   /** Algorithm → note routing — tagged algorithm list items (questionOptions.noteTag)
    *  auto-populate the custom note's HPI/PE sections from the YES/NO answers.
-   *  Dev-only while tagging is rolled out per algorithm; flip to false to open to all. */
-  algorithmNoteRouting: true,
+   *  Promoted 2026-11-23: open to all authenticated users (still per-medic opt-in). */
+  algorithmNoteRouting: false,
   /** Personnel — opt-in self-location on the map overlay. Promoted 2026-07-27:
    *  the island's share actions, the Personnel tree entry, and teammates'
    *  markers are open to all authenticated users. Flip back to true to re-gate. */

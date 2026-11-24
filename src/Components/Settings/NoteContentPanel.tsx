@@ -17,8 +17,7 @@ export const NoteContentPanel = ({ onNavigate, activeSubpage }: NoteContentPanel
     const isProviderRole = useAuthStore((s) => s.isProviderRole);
     const { isLoaned, memberships, toggle } = useTemplateSubscription();
 
-    // Algorithm → note seeding: opt-in switch. Beta-gated (dev-only) while
-    // per-algorithm tagging rolls out; opens to all when the flag is promoted.
+    // Algorithm → note seeding: opt-in switch, beta flag promoted.
     const seedBetaVisible = useBetaFlag('algorithmNoteRouting');
     const { profile, updateProfile, syncProfileField } = useUserProfile();
     const seedOn = profile?.seedAlgorithmNote === true; // default off

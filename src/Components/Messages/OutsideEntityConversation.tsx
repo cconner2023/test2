@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { DecryptedSignalMessage } from '../../lib/signal/transportTypes'
-import type { OutsideEntityMessageEntry, MessageContent } from '../../lib/signal/messageContent'
+import type { OutsideEntityMessageEntry, MessageContent, ImageContent, FileContent } from '../../lib/signal/messageContent'
 import type { OutsideEntityChannel } from '../../lib/outsideEntityChannelStore'
 import type { ClinicMedic } from '../../Types/SupervisorTestTypes'
 import { pollOutsideEntityInbound, sendOutsideEntityReply, sendOutsideEntityAttachment } from '../../lib/outsideEntityService'
@@ -14,9 +14,13 @@ import { UserAvatar } from '../Settings/UserAvatar'
 import { MobilePageHeader, ConversationTitlePill, ConversationActionsReserve } from '@/Components/primitives/MobilePageHeader'
 import { ErrorPill } from '@/Components/primitives/ErrorPill'
 
+export type DraftPayload = { text: string } | { content: ImageContent | FileContent; preview: string }
+
 interface Props {
-  /** Channel record — key + metadata. Outlives the messages by design. */
-  channel: OutsideEntityChannel
+  /** Channel record — key + metadata. Outlives the messages by design. Null while drafting. */
+  channel: OutsideEntityChannel | null
+  /** Unsent draft: the channel is minted by the first send. Returns an error or null. */
+  draft?: { id: string; email: string; send: (payload: DraftPayload) => Promise<string | null> }
   /** Cluster name shown as the conversation header (the sender the recipient sees). */
   clusterName: string
   /** Every conversation, not just this one: the thread renders from the channel's
@@ -71,6 +75,7 @@ const NO_PARTICIPANTS: ParticipantStatus[] = []
  */
 export function OutsideEntityConversation({
   channel,
+  draft,
   clusterName,
   conversations,
   medics,
@@ -89,7 +94,8 @@ export function OutsideEntityConversation({
 }: Props) {
   const { user } = useAuth()
   const userId = user?.id ?? ''
-  const peerId = channel.entity_id
+  const peerId = channel?.entity_id ?? draft?.id ?? ''
+  const recipientEmail = channel?.recipient_email ?? draft?.email ?? ''
   const isDevRole = useAuthStore(s => s.isDevRole)
 
   const [sending, setSending] = useState(false)
@@ -97,7 +103,7 @@ export function OutsideEntityConversation({
   const [ended, setEnded] = useState(false)
   const [mediaJumpId, setMediaJumpId] = useState<string | null>(null)
 
-  const expired = ended || new Date(channel.expires_at).getTime() <= Date.now()
+  const expired = !!channel && (ended || new Date(channel.expires_at).getTime() <= Date.now())
   const active = !expired
 
   // The outside_entity record is the channel anchor, not a chat message — hide it
@@ -137,7 +143,7 @@ export function OutsideEntityConversation({
   // keyed bundle (or whose envelope failed to decrypt); addMessage de-dupes by id, so
   // anything already delivered by envelope is a no-op.
   useEffect(() => {
-    if (!active) return
+    if (!active || !channel) return
     let cancelled = false
     const lastSeen = () => {
       let latest: string | null = null
@@ -172,6 +178,15 @@ export function OutsideEntityConversation({
   const handleSend = useCallback(async (id: string, text: string, threadId?: string) => {
     if (id !== peerId) return sendMessage(id, text, threadId)
     if (!active) return false
+    if (!channel) {
+      if (!draft) return false
+      setSending(true)
+      setError(null)
+      const err = await draft.send({ text })
+      setSending(false)
+      if (err) { setError(err); return false }
+      return true
+    }
     setSending(true)
     setError(null)
     const res = await sendOutsideEntityReply(channel, text)
@@ -179,12 +194,21 @@ export function OutsideEntityConversation({
     if (!res.ok) { setError(res.error ?? 'Could not send.'); return false }
     fileMessage(res.data)
     return true
-  }, [peerId, sendMessage, active, channel, fileMessage])
+  }, [peerId, sendMessage, active, channel, draft, fileMessage])
 
   // Photo and file only; the outside page has no resolver for refs or bundles.
   const handleSendStructured = useCallback(async (id: string, content: MessageContent, _originId: string, preview: string) => {
     if (id !== peerId || !active) return false
     if (content.type !== 'image' && content.type !== 'file') return false
+    if (!channel) {
+      if (!draft) return false
+      setSending(true)
+      setError(null)
+      const err = await draft.send({ content, preview })
+      setSending(false)
+      if (err) { setError(err); return false }
+      return true
+    }
     setSending(true)
     setError(null)
     const res = await sendOutsideEntityAttachment(channel, content)
@@ -192,15 +216,15 @@ export function OutsideEntityConversation({
     if (!res.ok) { setError(res.error ?? 'Could not send.'); return false }
     fileMessage(res.data, { content, preview })
     return true
-  }, [peerId, active, channel, fileMessage])
+  }, [peerId, active, channel, draft, fileMessage])
 
   // Unreachable: sendStructured routes every staged photo.
   const handleSendImage = useCallback(async () => false, [])
 
   const resolveAvatar = useCallback((_msg: DecryptedSignalMessage, isOwn: boolean) => {
     if (isOwn) return undefined
-    return <UserAvatar avatarId={null} firstName={channel.recipient_email} lastName={null} className="w-7 h-7" />
-  }, [channel.recipient_email])
+    return <UserAvatar avatarId={null} firstName={recipientEmail} lastName={null} className="w-7 h-7" />
+  }, [recipientEmail])
 
   // Info is unconditional here (a 1:1 dev-gates it) because the info card is
   // where this channel's kill switch lives — same slot as a group's Purge.
@@ -210,7 +234,7 @@ export function OutsideEntityConversation({
       onBack={onBack}
       title={
         <ConversationTitlePill
-          avatar={<UserAvatar avatarId={null} firstName={channel.recipient_email} lastName={null} className="w-11 h-11" />}
+          avatar={<UserAvatar avatarId={null} firstName={recipientEmail} lastName={null} className="w-11 h-11" />}
           title={clusterName}
           onClick={() => onShowInfo(true)}
         />
@@ -236,7 +260,7 @@ export function OutsideEntityConversation({
       participants={NO_PARTICIPANTS}
       resolveAvatar={resolveAvatar}
       showForward
-      emptyText={`No messages yet. Anything you send is private to you and ${channel.recipient_email}.`}
+      emptyText={`No messages yet. Anything you send is private to you and ${recipientEmail}.`}
       mobileHeader={mobileHeader}
       desktopHeader={null}
       registerThreadBack={registerThreadBack}
@@ -262,18 +286,18 @@ export function OutsideEntityConversation({
         peer={{
           userId: peerId,
           name: clusterName,
-          sub: channel.recipient_email,
+          sub: recipientEmail,
           avatarId: null,
-          firstName: channel.recipient_email,
+          firstName: recipientEmail,
           lastName: null,
         }}
-        directAction={{
+        directAction={channel ? {
           label: 'Delete contact',
           confirmTitle: 'Delete this secure contact for everyone?',
           confirmSubtitle: 'The channel is revoked, the key is destroyed, and the thread is removed on both sides. This can\'t be undone.',
           confirmLabel: 'Delete',
           onConfirm: () => { deleteConversation(peerId); onBack?.() },
-        }}
+        } : undefined}
       />
     </ChatDetailView>
   )

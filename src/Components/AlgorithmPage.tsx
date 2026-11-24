@@ -236,11 +236,12 @@ export function AlgorithmPage({ searchInput = '', onSearchChange, searchResults,
                     />
                 ) : undefined}
             >
+                <div className={isMobile ? 'w-full' : 'w-full max-w-[calc(min(45cqw,560px)+92px)] ml-auto'}>
                     <AlgorithmTrace
                         nodes={traceNodes}
                         hold={isTransitioning}
                         onReveal={handleTraceReveal}
-                        innerClassName="flex flex-col px-[46px] pt-5 pb-32 space-y-1 w-full"
+                        innerClassName={`flex flex-col ${isMobile ? 'px-3' : 'px-[46px]'} pt-5 pb-32 space-y-1 w-full`}
                     >
                         <QuestionCard
                             algorithmOptions={algorithmOptions}
@@ -255,7 +256,7 @@ export function AlgorithmPage({ searchInput = '', onSearchChange, searchResults,
 
                         {currentDisposition && colors && (
                             <div className="flex flex-col items-center">
-                                <div className="h-[120px]" />
+                                <div className="h-[160px] md:h-[120px]" />
                                 <div
                                     key={`dispo-${currentDisposition.type}-${currentDisposition.text}`}
                                     className="w-full animate-cardFadeUp"
@@ -321,6 +322,7 @@ export function AlgorithmPage({ searchInput = '', onSearchChange, searchResults,
                             style={{ marginTop: '1rem', marginBottom: '1rem' }}
                         />
                     </AlgorithmTrace>
+                </div>
             </MobileSearchBar>
 
             {openScreenerCardIndex !== null && algorithmOptions[openScreenerCardIndex]?.screenerConfig &&
