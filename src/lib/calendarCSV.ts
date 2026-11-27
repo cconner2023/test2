@@ -1,5 +1,6 @@
 import type { EventCategory } from '../Types/CalendarTypes'
-import { neutralizeCsvFormula, restoreCsvFormula } from '../Utilities/csvSafe'
+import { csvCell, restoreCsvFormula } from '../Utilities/csvSafe'
+import { downloadCSVString } from '../Utilities/downloadUtils'
 
 export interface ParsedCalendarRow {
   title: string
@@ -138,31 +139,13 @@ function parseCSVRow(line: string): string[] {
   return fields.map(restoreCsvFormula)
 }
 
-function escapeCSVField(raw: string): string {
-  const value = neutralizeCsvFormula(raw)
-  if (value.includes(',') || value.includes('"') || value.includes('\n')) {
-    return `"${value.replace(/"/g, '""')}"`
-  }
-  return value
-}
-
-function downloadCSVString(csv: string, filename: string): void {
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  a.click()
-  URL.revokeObjectURL(url)
-}
-
 // ── Public API ──────────────────────────────────────────────
 
 export function downloadCalendarCSVTemplate(): void {
   const example = [
     CSV_HEADERS,
-    escapeCSVField('Morning PT') + ',2026-05-01,06:00,2026-05-01,07:00,no,,Physical readiness training,training',
-    escapeCSVField('Range Day') + ',2026-05-10,,,,yes,Range 4,,range',
+    csvCell('Morning PT') + ',2026-05-01,06:00,2026-05-01,07:00,no,,Physical readiness training,training',
+    csvCell('Range Day') + ',2026-05-10,,,,yes,Range 4,,range',
   ].join('\r\n')
   downloadCSVString(example, 'calendar-import-template.csv')
 }

@@ -4,6 +4,14 @@ import { emitCopied } from '../lib/copyFeedback';
  * Convert plain-text note into HTML that preserves line breaks and
  * renders bullet lines (`  • …`) as proper `<ul><li>` lists.
  */
+function escapeHtml(value: string): string {
+    return value
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
 function textToHtml(text: string): string {
     const lines = text.split('\n');
     const parts: string[] = [];
@@ -13,10 +21,10 @@ function textToHtml(text: string): string {
         const bullet = line.match(/^\s+• (.+)/);
         if (bullet) {
             if (!inList) { parts.push('<ul>'); inList = true; }
-            parts.push(`<li>${bullet[1]}</li>`);
+            parts.push(`<li>${escapeHtml(bullet[1])}</li>`);
         } else {
             if (inList) { parts.push('</ul>'); inList = false; }
-            parts.push(`<div>${line || '<br>'}</div>`);
+            parts.push(`<div>${line ? escapeHtml(line) : '<br>'}</div>`);
         }
     }
     if (inList) parts.push('</ul>');

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useTC3Store } from '../stores/useTC3Store'
+import { toDateKey } from '../Utilities/dates'
 
 export interface TQAlert {
   id: string
@@ -16,7 +17,7 @@ function computeAlerts(
   const now = Date.now()
   const datePrefix = dateTimeOfInjury
     ? dateTimeOfInjury.slice(0, 10)
-    : new Date().toISOString().slice(0, 10)
+    : toDateKey(new Date())
 
   return tourniquets
     .filter((tq) => tq.time.trim() !== '')

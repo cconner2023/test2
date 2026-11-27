@@ -24,10 +24,13 @@ interface CalendarTombstone {
   deletedAt: number
 }
 
-interface PendingVaultSend {
+export interface PendingVaultSend {
   id: string
   event: Partial<CalendarEvent> & { id: string }
   queuedAt: number
+  originId?: string
+  fanTargets?: string[]
+  remainingTargets?: string[]
 }
 
 interface CalendarEventsDB extends DBSchema {
@@ -204,10 +207,13 @@ export async function loadCalendarTombstones(): Promise<Set<string>> {
 // ---- Pending Vault Send Queue ----
 
 /** Queue a calendar event for vault fan-out retry when connectivity returns. */
-export async function queuePendingVaultSend(event: Partial<CalendarEvent> & { id: string }): Promise<void> {
+export async function queuePendingVaultSend(
+  event: Partial<CalendarEvent> & { id: string },
+  extras?: Pick<PendingVaultSend, 'originId' | 'fanTargets' | 'remainingTargets'>,
+): Promise<void> {
   try {
     const db = await getDb()
-    await db.put('pendingVaultSends', { id: event.id, event, queuedAt: Date.now() })
+    await db.put('pendingVaultSends', { id: event.id, event, queuedAt: Date.now(), ...extras })
   } catch (e) {
     logger.warn('Failed to queue pending vault send:', e)
   }
@@ -224,11 +230,33 @@ export async function loadPendingVaultSends(): Promise<PendingVaultSend[]> {
   }
 }
 
-/** Remove a successfully sent event from the retry queue. */
-export async function clearPendingVaultSend(id: string): Promise<void> {
+export async function patchPendingVaultSend(
+  item: PendingVaultSend,
+  patch: Partial<Pick<PendingVaultSend, 'event' | 'originId' | 'fanTargets' | 'remainingTargets'>>,
+): Promise<void> {
   try {
     const db = await getDb()
-    await db.delete('pendingVaultSends', id)
+    const tx = db.transaction('pendingVaultSends', 'readwrite')
+    const current = await tx.store.get(item.id)
+    if (current && current.queuedAt === item.queuedAt) await tx.store.put({ ...current, ...patch })
+    await tx.done
+  } catch (e) {
+    logger.warn('Failed to stamp pending vault send origin:', e)
+  }
+}
+
+/** Remove a successfully sent event from the retry queue. */
+export async function clearPendingVaultSend(id: string, queuedAt?: number): Promise<void> {
+  try {
+    const db = await getDb()
+    if (queuedAt === undefined) {
+      await db.delete('pendingVaultSends', id)
+      return
+    }
+    const tx = db.transaction('pendingVaultSends', 'readwrite')
+    const current = await tx.store.get(id)
+    if (current && current.queuedAt === queuedAt) await tx.store.delete(id)
+    await tx.done
   } catch (e) {
     logger.warn('Failed to clear pending vault send:', e)
   }

@@ -23,6 +23,8 @@ import { uploadEncryptedAttachment } from '../../lib/signal'
 import type { PmcsDoc } from '../../lib/propertyService'
 import { DISPATCH_EVENT_TYPES, foldOpenDispatches, type DispatchStatus } from '../../lib/dispatchFold'
 import { createLogger } from '../../Utilities/Logger'
+import { getErrorMessage } from '../../Utilities/errorUtils'
+import { toDateKey } from '../../Utilities/dates'
 
 const logger = createLogger('DispatchSheet')
 
@@ -142,9 +144,20 @@ export function DispatchSheet({ isOpen, onClose, subjectId, clinicId, containerR
   // bucket; key rides in the encrypted payload). Returns the doc descriptor, or
   // null on failure (caller aborts and shows docError).
   const uploadDoc = async (file: File): Promise<PmcsDoc | null> => {
-    if (!userId) return null
-    const pdf = await ensurePdfFile(file)
-    const up = await uploadEncryptedAttachment(userId, pdf, { class: 'p' })
+    if (!userId) {
+      setDocError('Could not upload the document — try again.')
+      return null
+    }
+    let pdf: File
+    let up: Awaited<ReturnType<typeof uploadEncryptedAttachment>>
+    try {
+      pdf = await ensurePdfFile(file)
+      up = await uploadEncryptedAttachment(userId, pdf, { class: 'p' })
+    } catch (e) {
+      logger.warn('dispatch doc upload failed:', e)
+      setDocError('Could not upload the document — try again.')
+      return null
+    }
     if (!up.ok) {
       logger.warn('dispatch doc upload failed:', up.error)
       setDocError('Could not upload the document — try again.')
@@ -156,44 +169,58 @@ export function DispatchSheet({ isOpen, onClose, subjectId, clinicId, containerR
   const handleOpen = async () => {
     if (!expDate || busy) return
     setBusy(true); setDocError(null)
-    let doc: PmcsDoc | undefined
-    if (openDocFile) {
-      const uploaded = await uploadDoc(openDocFile)
-      if (!uploaded) { setBusy(false); return }
-      doc = uploaded
+    try {
+      let doc: PmcsDoc | undefined
+      if (openDocFile) {
+        const uploaded = await uploadDoc(openDocFile)
+        if (!uploaded) return
+        doc = uploaded
+      }
+      const miles = parseInt(odoOut, 10)
+      const id = await openDispatch(subjectId, {
+        exp_date: expDate,
+        ...(doc ? { doc } : {}),
+        ...(openNote.trim() ? { note: openNote.trim() } : {}),
+        ...(Number.isFinite(miles) ? { odo_out: miles } : {}),
+        ...(partyLabel(operator) ? { operator: partyLabel(operator) } : {}),
+        ...(partyLabel(tc) ? { tc: partyLabel(tc) } : {}),
+      })
+      if (id) onClose()
+      else setDocError('Could not save — try again.')
+    } catch (e) {
+      logger.warn('dispatch open failed:', e)
+      setDocError(getErrorMessage(e, 'Could not save — try again.'))
+    } finally {
+      setBusy(false)
     }
-    const miles = parseInt(odoOut, 10)
-    const id = await openDispatch(subjectId, {
-      exp_date: expDate,
-      ...(doc ? { doc } : {}),
-      ...(openNote.trim() ? { note: openNote.trim() } : {}),
-      ...(Number.isFinite(miles) ? { odo_out: miles } : {}),
-      ...(partyLabel(operator) ? { operator: partyLabel(operator) } : {}),
-      ...(partyLabel(tc) ? { tc: partyLabel(tc) } : {}),
-    })
-    setBusy(false)
-    if (id) onClose()
   }
 
   const handleReturn = async () => {
     if (!current || busy) return
     setBusy(true); setDocError(null)
-    let doc: PmcsDoc | undefined
-    if (returnDocFile) {
-      const uploaded = await uploadDoc(returnDocFile)
-      if (!uploaded) { setBusy(false); return }
-      doc = uploaded
+    try {
+      let doc: PmcsDoc | undefined
+      if (returnDocFile) {
+        const uploaded = await uploadDoc(returnDocFile)
+        if (!uploaded) return
+        doc = uploaded
+      }
+      const miles = parseInt(odoIn, 10)
+      const ok = await closeDispatch(subjectId, {
+        dispatches: current.dispatchId,
+        returned_at: returnDate || toDateKey(new Date()),
+        ...(doc ? { doc } : {}),
+        ...(returnNote.trim() ? { note: returnNote.trim() } : {}),
+        ...(Number.isFinite(miles) ? { odo_in: miles } : {}),
+      })
+      if (ok) onClose()
+      else setDocError('Could not save — try again.')
+    } catch (e) {
+      logger.warn('dispatch return failed:', e)
+      setDocError(getErrorMessage(e, 'Could not save — try again.'))
+    } finally {
+      setBusy(false)
     }
-    const miles = parseInt(odoIn, 10)
-    const ok = await closeDispatch(subjectId, {
-      dispatches: current.dispatchId,
-      returned_at: returnDate || new Date().toISOString().slice(0, 10),
-      ...(doc ? { doc } : {}),
-      ...(returnNote.trim() ? { note: returnNote.trim() } : {}),
-      ...(Number.isFinite(miles) ? { odo_in: miles } : {}),
-    })
-    setBusy(false)
-    if (ok) onClose()
   }
 
   const docOf = (e: AuditEvent): PmcsDoc | null => {
@@ -230,7 +257,7 @@ export function DispatchSheet({ isOpen, onClose, subjectId, clinicId, containerR
   ) : (
     // No current dispatch — the open intake.
     <div className="divide-y divide-tertiary/8">
-      <DatePickerInput value={expDate} onChange={setExpDate} placeholder="Dispatch expires" minDate={new Date().toISOString().slice(0, 10)} />
+      <DatePickerInput value={expDate} onChange={setExpDate} placeholder="Dispatch expires" minDate={toDateKey(new Date())} />
       <TextInput value={odoOut} onChange={(v) => setOdoOut(v.replace(/[^\d]/g, ''))} inputMode="numeric" placeholder="Odometer out" />
       {/* Who took it out — operator (driver) + TC (track commander), each a cluster
           member OR an off-roster (other-unit) party via the shared PartyPicker. Ride

@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { Palette, Shield, Lock, MessageSquare, Bell, Stethoscope, Scale, X, Building2, Check, Radio, LayoutDashboard, HardDrive, Smartphone, BookOpen, Plus } from 'lucide-react';
+import { Palette, Shield, Lock, MessageSquare, Bell, Stethoscope, Scale, X, Building2, Check, Radio, LayoutDashboard, HardDrive, Smartphone, BookOpen } from 'lucide-react';
 import { BaseDrawer } from '@/Components/primitives/BaseDrawer';
 import { useIsMobile } from '../../Hooks/useIsMobile';
 import { ChildClinicRosterCard } from './Supervisor/ChildClinicRosterSheet';
@@ -23,7 +23,6 @@ import { ProfilePage } from './ProfilePage';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../Hooks/useAuth';
 import { useAuthStore } from '../../stores/useAuthStore';
-import { clearAllUserData } from '../../lib/offlineDb';
 import { clearServiceWorkerCaches } from '../../lib/cacheService';
 import { deleteOwnAccount } from '../../lib/authService';
 import { PANEL, PANEL_TARGET, type PanelId, type SettingsItem } from './SettingsTypes';
@@ -39,7 +38,6 @@ import { useHeldWhileOpen } from '../../Hooks/useHeldWhileOpen';
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill';
 import { SessionsDevicesPanel } from './SessionsDevicesPanel';
 import { ClinicPanel } from './ClinicPanel';
-import { openIntakeLineMint } from './IntakeMintSection';
 import { LoRaPanel } from './LoRaPanel';
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog';
 import { ThemePickerPanel } from './ThemePickerPanel';
@@ -472,13 +470,9 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
                                     onClick={() => setClinicSaveRequested(true)}
                                     label="Save"
                                 />
-                            ) : (<>
-                                {/* Mints an outside-contact line. The section that owns
-                                    the flow is two levels down, so it publishes an
-                                    opener rather than taking a signal prop. */}
-                                <PillButton icon={Plus} onClick={openIntakeLineMint} label="Add line" />
+                            ) : (
                                 <PillButton icon={X} onClick={() => guardedClinicAction(handleClose)} label="Close" />
-                            </>)}
+                            )}
                         </HeaderPill>
                     );
                     return {
@@ -509,8 +503,7 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
             desktopPosition="left"
             isVisible={isVisible}
             onClose={handleClose}
-            fullHeight="90dvh"
-            disableDrag={false}
+            mobilePanel
             header={drawerHeader}
             scrollDisabled
             glassHeader={isMobile}
@@ -563,11 +556,10 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
                             'user-profile': (
                                 <ProfilePage
                                     onAvatarClick={() => handleItemClick(PANEL.AVATAR_PICKER, handleClose)}
-                                    onSignOut={async () => { await clearAllUserData(); await clearServiceWorkerCaches(); await signOut(); handleClose(); }}
+                                    onSignOut={async () => { await clearServiceWorkerCaches(); await signOut(); handleClose(); }}
                                     onDeleteAccount={async () => {
                                         const result = await deleteOwnAccount();
                                         if (!result.success) return result;
-                                        await clearAllUserData();
                                         await clearServiceWorkerCaches();
                                         await signOut();
                                         handleClose();

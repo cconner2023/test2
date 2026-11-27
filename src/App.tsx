@@ -36,6 +36,7 @@ import { ImportResultPopover } from './Components/ImportResultPopover'
 import { ImportedNoteDrawer } from './Components/ImportedNoteDrawer'
 import { useProfileAvatar } from './Hooks/useProfileAvatar'
 import { useProfileRealtime } from './Hooks/useProfileRealtime'
+import { useVaultSendDrains } from './Hooks/useVaultSendDrains'
 import { useAuth } from './Hooks/useAuth'
 import { useAuthStore, loadLocalSessionSync } from './stores/useAuthStore'
 import { supabase } from './lib/supabase'
@@ -146,6 +147,7 @@ function AppContent() {
   // Mounted once here so useProfileAvatar no longer opens its own channel.
   useProfileRealtime(user?.id)
   const avatarState = useProfileAvatar(user?.id)
+  useVaultSendDrains()
   const showTC3Export = useTC3Store((s) => s.showExport)
   const tc3ExportCard = useTC3Store((s) => s.exportCard)
   const tc3ExportCards = useTC3Store((s) => s.exportCards)
@@ -203,7 +205,8 @@ function AppContent() {
   })
 
   // Content strip parallax follows whichever right panel is in play.
-  const rightPanelProgress = Math.max(messagesSlide.progress, trackingSlide.progress)
+  const mobilePanelOpen = useDrawerPushStore(s => s.mobilePanels.length > 0)
+  const rightPanelProgress = Math.max(messagesSlide.progress, trackingSlide.progress, mobilePanelOpen ? 1 : 0)
   const rightPanelDragging = messagesSlide.isDragging || trackingSlide.isDragging
   const [postUpdatePending, setPostUpdatePending] = useState(!!_postUpdateNav)
   // Store-held so a chat "Decode note" can open the same drawer from deep inside Messages.

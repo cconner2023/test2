@@ -14,6 +14,7 @@ import { useZoneLabelExport } from '../../Hooks/useZoneLabelExport'
 import type { DD1750Item } from '../../Utilities/DD1750Export'
 import type { LabelItem } from '../../Utilities/PropertyLabelExport'
 import type { LocalPropertyItem, LocalPropertyLocation } from '../../Types/PropertyTypes'
+import { toDateKey } from '../../Utilities/dates'
 
 /** Map a live item to a DD 1750 packing-list line. */
 const toDD1750Line = (it: LocalPropertyItem): DD1750Item => ({
@@ -260,7 +261,7 @@ export const LocationActionMenu = forwardRef<LocationActionMenuHandle, LocationA
   const handleDD1750Create = useCallback((opts: { packedBy?: string; reviewedBy?: string }) => {
     if (!location) return
     const lines = collectDD1750Lines(location.id, items, locations)
-    const date = new Date().toISOString().slice(0, 10)
+    const date = toDateKey(new Date())
     void exportDD1750({ zoneName: location.name, packedBy: opts.packedBy, reviewedBy: opts.reviewedBy, date, items: lines })
     setShowDD1750(false)
   }, [items, locations, location, exportDD1750])

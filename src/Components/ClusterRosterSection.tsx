@@ -28,7 +28,7 @@ import { ActionButton } from '@/Components/primitives/ActionButton'
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
 import { AnchoredMenu } from '@/Components/primitives/LiftedRowMenu'
 import { type ContextMenuItem } from '@/Components/primitives/ContextMenu'
-import { PreviewOverlay } from './PreviewOverlay'
+import { PaneStack, type StackScreen } from '@/Components/primitives/PaneStack'
 import { HQ_BUCKET } from '../Utilities/subCluster'
 import { SkeletonRows } from '@/Components/primitives/Skeleton'
 import type { SubCluster } from '../lib/subClusterService'
@@ -71,9 +71,6 @@ interface ClusterRosterSectionProps<T> {
   onDeleteSubUnit?: (id: string) => Promise<boolean>
   /** Extra menu entries beyond "New sub-unit" (e.g. Add member / Create user). */
   addActions?: ContextMenuItem[]
-  /** Mirrors the pill element out, so an addAction whose own overlay anchors to
-   *  it (ClinicPanel's Add-member popover) still has a rect. */
-  addAnchorRef?: { current: HTMLDivElement | null }
   /** Wrapper for each group's rows — e.g. 'divide-y divide-tertiary/10'. */
   itemsClassName?: string
   /** Card overrides (radius, padding). Card is borderless by default. */
@@ -99,7 +96,6 @@ export function ClusterRosterSection<T>({
   onRenameSubUnit,
   onDeleteSubUnit,
   addActions,
-  addAnchorRef,
   itemsClassName,
   cardClassName = 'rounded-2xl bg-themewhite2 overflow-hidden',
   children,
@@ -109,8 +105,7 @@ export function ClusterRosterSection<T>({
 }: ClusterRosterSectionProps<T>) {
   const pillRef = useRef<HTMLDivElement | null>(null)
   const [menuRect, setMenuRect] = useState<DOMRect | null>(null)
-  const [addRect, setAddRect] = useState<DOMRect | null>(null)
-  const [editTarget, setEditTarget] = useState<{ sc: SubCluster; rect: DOMRect } | null>(null)
+  const [pane, setPane] = useState<{ mode: 'add' } | { mode: 'edit'; sc: SubCluster } | null>(null)
   const [pendingDelete, setPendingDelete] = useState<SubCluster | null>(null)
   const [draft, setDraft] = useState('')
   const [busy, setBusy] = useState(false)
@@ -158,16 +153,18 @@ export function ClusterRosterSection<T>({
     setBusy(true)
     const ok = await onCreateSubUnit(name)
     setBusy(false)
-    if (ok) setAddRect(null)
+    if (ok) setPane(null)
   }
+
+  const editTarget = pane?.mode === 'edit' ? pane.sc : null
 
   const saveEdit = async () => {
     const name = draft.trim()
     if (!name || busy || !editTarget || !onRenameSubUnit) return
     setBusy(true)
-    const ok = await onRenameSubUnit(editTarget.sc.id, name)
+    const ok = await onRenameSubUnit(editTarget.id, name)
     setBusy(false)
-    if (ok) setEditTarget(null)
+    if (ok) setPane(null)
   }
 
   const confirmDelete = async () => {
@@ -189,18 +186,60 @@ export function ClusterRosterSection<T>({
     </div>
   )
 
-  /** "New sub-unit" anchors its overlay to the pill it was fired from. */
   const openAdd = useCallback(() => {
     setDraft('')
     setMenuRect(null)
-    setAddRect(pillRef.current?.getBoundingClientRect() ?? null)
+    setPane({ mode: 'add' })
   }, [])
 
   /** Tap a sub-unit header to rename/delete it — the header IS the sub-unit. */
-  const openEdit = useCallback((sc: SubCluster, anchor: HTMLElement) => {
+  const openEdit = useCallback((sc: SubCluster) => {
     setDraft(sc.name)
-    setEditTarget({ sc, rect: anchor.getBoundingClientRect() })
+    setPane({ mode: 'edit', sc })
   }, [])
+
+  const closePane = () => { if (!busy) setPane(null) }
+
+  const paneScreens: Record<string, StackScreen> = {
+    add: {
+      title: 'New sub-unit',
+      rightFooter: draft.trim() && !busy ? (
+        <FooterPill side="right">
+          <ActionButton
+            icon={Check}
+            label="Add"
+            variant="confirm"
+            onClick={() => void saveAdd()}
+          />
+        </FooterPill>
+      ) : undefined,
+      render: () => nameField(() => void saveAdd()),
+    },
+    edit: {
+      title: 'Sub-unit',
+      footer: (
+        <FooterPill>
+          <ActionButton
+            icon={Trash2}
+            label="Delete"
+            variant="danger"
+            onClick={() => { const sc = editTarget; setPane(null); if (sc) setPendingDelete(sc) }}
+          />
+        </FooterPill>
+      ),
+      rightFooter: draft.trim() && !busy ? (
+        <FooterPill side="right">
+          <ActionButton
+            icon={Check}
+            label="Save"
+            variant="confirm"
+            onClick={() => void saveEdit()}
+          />
+        </FooterPill>
+      ) : undefined,
+      render: () => nameField(() => void saveEdit()),
+    },
+  }
 
   /** Everything the section can add, behind one ellipsis. Caller actions are
    *  wrapped so picking one dismisses the menu before it runs. */
@@ -255,7 +294,7 @@ export function ClusterRosterSection<T>({
                   <button
                     type="button"
                     aria-label={`Edit ${g.name}`}
-                    onClick={(e) => openEdit(g.subUnit!, e.currentTarget)}
+                    onClick={() => openEdit(g.subUnit!)}
                     className={`${headerBase} ${border} active:scale-[0.99] hover:bg-themeblue2/5 transition-all`}
                   >
                     {label}
@@ -274,7 +313,7 @@ export function ClusterRosterSection<T>({
             section can add lives in its context menu. */}
         {menuItems.length > 0 && (
           <ActionPill
-            ref={(el) => { pillRef.current = el; if (addAnchorRef) addAnchorRef.current = el }}
+            ref={pillRef}
             shadow="sm"
             placement="overlay"
           >
@@ -295,59 +334,13 @@ export function ClusterRosterSection<T>({
         onClose={() => setMenuRect(null)}
       />
 
-      {/* New sub-unit — header X cancels, footer pill commits. */}
-      <PreviewOverlay
-        isOpen={!!addRect}
-        onClose={() => setAddRect(null)}
-        anchorRect={addRect}
-        title="New sub-unit"
-        maxWidth={320}
+      <PaneStack
+        isOpen={!!pane}
+        onClose={closePane}
+        initial={{ key: pane?.mode ?? 'add' }}
+        screens={paneScreens}
         loading={busy}
-        rightFooter={draft.trim() && !busy ? (
-          <FooterPill side="right">
-            <ActionButton
-              icon={Check}
-              label="Add"
-              variant="confirm"
-              onClick={() => void saveAdd()}
-            />
-          </FooterPill>
-        ) : undefined}
-      >
-        {nameField(() => void saveAdd())}
-      </PreviewOverlay>
-
-      {/* Header tap — rename (footer Save) or delete (footer Delete). */}
-      <PreviewOverlay
-        isOpen={!!editTarget}
-        onClose={() => setEditTarget(null)}
-        anchorRect={editTarget?.rect ?? null}
-        title="Sub-unit"
-        maxWidth={320}
-        footer={
-          <FooterPill>
-            <ActionButton
-              icon={Trash2}
-              label="Delete"
-              variant="danger"
-              onClick={() => { const sc = editTarget?.sc; setEditTarget(null); if (sc) setPendingDelete(sc) }}
-            />
-          </FooterPill>
-        }
-        loading={busy}
-        rightFooter={draft.trim() && !busy ? (
-          <FooterPill side="right">
-            <ActionButton
-              icon={Check}
-              label="Save"
-              variant="confirm"
-              onClick={() => void saveEdit()}
-            />
-          </FooterPill>
-        ) : undefined}
-      >
-        {nameField(() => void saveEdit())}
-      </PreviewOverlay>
+      />
 
       <ConfirmDialog
         visible={!!pendingDelete}

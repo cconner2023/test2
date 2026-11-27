@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef, type ReactNode } from 'react'
+import { useState, useCallback, useEffect, useMemo, useRef, type ReactNode } from 'react'
 import { X, Plus, Inbox, Network, MapPin, MessageCircleQuestion, UserPlus, Building2, type LucideIcon } from 'lucide-react'
 import { BaseDrawer } from '@/Components/primitives/BaseDrawer'
 import { BottomIsland } from '@/Components/primitives/BottomIsland'
@@ -6,6 +6,7 @@ import { AddFab } from '@/Components/primitives/AddFab'
 import { DesktopRail } from '@/Components/primitives/DesktopRail'
 import { AnchoredMenu } from '@/Components/primitives/LiftedRowMenu'
 import { PaneCard } from '@/Components/primitives/PaneCard'
+import { createPaneHostStore, HostedPaneCard, PaneHostContext, type PaneHost } from '@/Components/primitives/paneHost'
 import { RailSearchRow } from '@/Components/primitives/RailSearchRow'
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
 import { ContentWrapper } from '@/Components/primitives/ContentWrapper'
@@ -172,6 +173,12 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
     const [addMenuRect, setAddMenuRect] = useState<DOMRect | null>(null)
     const [gearOpen, setGearOpen] = useState(false)
     const gearAnchorRef = useRef<HTMLDivElement>(null)
+    const [nestedPaneStore] = useState(createPaneHostStore)
+    const [detailCovered, setDetailCovered] = useState(false)
+    const nestedPaneHost = useMemo<PaneHost>(() => ({
+        store: nestedPaneStore,
+        onActiveChange: setDetailCovered,
+    }), [nestedPaneStore])
 
     // The drawer is mounted for everyone — only read the triage feed while a dev has it open.
     const inbox = useAdminInbox(isVisible && isDevRole)
@@ -233,7 +240,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         onClose()
     }), [guard, show, onClose])
 
-    useEscBackout(!isMobile && !!detail, back)
+    useEscBackout(!isMobile && !!detail && !detailCovered, back)
     const isMobileThread = isMobile && detail?.kind === 'thread'
     const swipeHandlers = useSwipeBack(isMobileThread ? back : undefined, isMobileThread)
 
@@ -567,21 +574,30 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
     // body (keyed) without replaying the entrance. Esc runs `back` (useEscBackout
     // above), so the card's own Esc is off.
     const detailCard = !isMobile && shownDetail && (
-        <PaneCard
-            isOpen={!!detail}
-            onClose={dismiss}
-            title={title}
-            eyebrow={crumbs}
-            onBack={trail.length > 0 ? back : undefined}
-            rightContent={headerActions}
-            width={DETAIL_W}
-            fill={shownDetail.kind === 'thread'}
-            closeOnEsc={false}
-        >
-            {shownDetail.kind === 'thread'
-                ? <div key={paneKey(shownDetail)} className="h-full">{renderDetail(shownDetail)}</div>
-                : <div key={paneKey(shownDetail)} className="px-4 pt-1 pb-6">{renderDetail(shownDetail)}</div>}
-        </PaneCard>
+        <>
+            <PaneCard
+                isOpen={!!detail}
+                onClose={dismiss}
+                title={title}
+                eyebrow={crumbs}
+                onBack={trail.length > 0 ? back : undefined}
+                rightContent={headerActions}
+                width={DETAIL_W}
+                fill={shownDetail.kind === 'thread'}
+                closeOnEsc={false}
+                hidden={detailCovered}
+            >
+                <PaneHostContext.Provider value={nestedPaneHost}>
+                    {shownDetail.kind === 'thread'
+                        ? <div key={paneKey(shownDetail)} className="h-full">{renderDetail(shownDetail)}</div>
+                        : <div key={paneKey(shownDetail)} className="px-4 pt-1 pb-6">{renderDetail(shownDetail)}</div>}
+                </PaneHostContext.Provider>
+            </PaneCard>
+            <HostedPaneCard
+                store={nestedPaneStore}
+                fallback={{ isOpen: false, onClose: () => {}, title: '', children: null }}
+            />
+        </>
     )
 
     return (
@@ -591,7 +607,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                 isVisible={isVisible}
                 onClose={handleClose}
                 fullHeight="95dvh"
-                mobileFullScreen
+                mobilePanel
                 header={header}
                 scrollDisabled
                 glassHeader={isMobile}

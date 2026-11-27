@@ -24,6 +24,9 @@
 import { clearClinicVaultKey } from './signal/clinicVaultDevice'
 import { deleteCalendarEventsForClinic } from './calendarEventStore'
 import { purgeClinicScopedData } from './offlineDb'
+import { clearPendingPropertySendsForClinic } from './propertyEventStore'
+import { destroyOutsideEntityChannels } from './outsideEntityChannelStore'
+import { clearHeartbeatClinicDevice } from './activityHeartbeat'
 import { clearClinicUsersCache } from './clinicUsersCache'
 import { clearSubClusterCache } from './subClusterCache'
 import { clearSubClusterSnapshots } from '../Hooks/useSubClusters'
@@ -44,11 +47,14 @@ export async function evictClinicData(clinicId: string): Promise<void> {
 
   // 1. In-memory clinic vault wrapping key — no future snapshot/tail decrypts.
   clearClinicVaultKey(clinicId)
+  clearHeartbeatClinicDevice(clinicId)
 
   // 2. IDB projections (tombstones preserved by both helpers).
   await Promise.allSettled([
     deleteCalendarEventsForClinic(clinicId),
     purgeClinicScopedData(clinicId),
+    clearPendingPropertySendsForClinic(clinicId),
+    destroyOutsideEntityChannels(),
   ])
 
   // 3. In-memory stores — drop anything still pointing at the removed clinic.

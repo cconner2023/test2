@@ -19,7 +19,7 @@ import { getEvaluableTaskData } from '../Utilities/algorithmCompetency'
 import { stp68wTraining } from '../Data/TrainingTaskList'
 import type { TrainingCompletionUI } from './trainingService'
 import { downloadBlob } from '../Utilities/downloadUtils'
-import { neutralizeCsvFormula } from '../Utilities/csvSafe'
+import { csvCell } from '../Utilities/csvSafe'
 
 export interface TrainingCompletionExportRow {
   soldier: string
@@ -92,11 +92,6 @@ export function buildTrainingCompletionExportRows(
     || a.date.localeCompare(b.date)
     || a.task.localeCompare(b.task),
   )
-}
-
-function csvCell(raw: string): string {
-  const value = neutralizeCsvFormula(raw)
-  return /[",\n\r]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value
 }
 
 export function generateTrainingCompletionCsv(rows: TrainingCompletionExportRow[]): string {

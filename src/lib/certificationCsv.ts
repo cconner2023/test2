@@ -19,7 +19,7 @@
 import { getExpirationStatus, statusLabel } from '../Components/Certifications/certHelpers'
 import type { Certification } from '../Data/User'
 import { downloadBlob } from '../Utilities/downloadUtils'
-import { neutralizeCsvFormula } from '../Utilities/csvSafe'
+import { csvCell } from '../Utilities/csvSafe'
 
 export interface CertificationExportRow {
   soldier: string
@@ -60,11 +60,6 @@ export function buildCertificationExportRows(
     a.soldier.localeCompare(b.soldier)
     || a.certification.localeCompare(b.certification),
   )
-}
-
-function csvCell(raw: string): string {
-  const value = neutralizeCsvFormula(raw)
-  return /[",\n\r]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value
 }
 
 export function generateCertificationCsv(rows: CertificationExportRow[]): string {

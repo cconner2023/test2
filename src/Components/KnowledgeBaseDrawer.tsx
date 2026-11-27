@@ -43,6 +43,7 @@ import { tc3MedList } from '../Data/TC3MedData'
 import type { ScreenerConfig, ScreenerWordList } from '../Types/AlgorithmTypes'
 import type { MedevacRequest } from '../Types/MedevacTypes'
 import { useMedevacStore } from '../stores/useMedevacStore'
+import { toDateKey } from '../Utilities/dates'
 
 type KBView =
     | 'home'
@@ -375,7 +376,7 @@ export function KnowledgeBaseDrawer({
             desktopPosition="left"
             isVisible={isVisible}
             onClose={handleClose}
-            fullHeight="90dvh"
+            mobilePanel
             header={headerConfig}
             glassHeader
             scrollResetKey={view}
@@ -524,7 +525,7 @@ export function KnowledgeBaseDrawer({
                             value={vitals.lmp || ''}
                             onChange={(v) => setVitals(prev => ({ ...prev, lmp: v }))}
                             onClose={() => setLmpPicker(false)}
-                            maxDate={new Date().toISOString().slice(0, 10)}
+                            maxDate={toDateKey(new Date())}
                         />
                     </div>
                 ) : (

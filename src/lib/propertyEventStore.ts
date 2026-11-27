@@ -43,6 +43,7 @@ export interface PendingPropertySend {
   holderIds: string[]
   authoringClinicId: string | null
   queuedAt: number
+  remainingTargets?: string[]
 }
 
 interface PropertyEventsDB extends DBSchema {
@@ -139,6 +140,21 @@ export async function queuePendingPropertySend(entry: Omit<PendingPropertySend, 
   }
 }
 
+export async function patchPendingPropertySend(
+  item: PendingPropertySend,
+  patch: Partial<Pick<PendingPropertySend, 'remainingTargets' | 'payload'>>,
+): Promise<void> {
+  try {
+    const db = await getDb()
+    const tx = db.transaction('pendingPropertySends', 'readwrite')
+    const current = await tx.store.get(item.key)
+    if (current && current.queuedAt === item.queuedAt) await tx.store.put({ ...current, ...patch })
+    await tx.done
+  } catch (e) {
+    logger.warn('Failed to patch pending property send:', e)
+  }
+}
+
 /** Load all queued property sends pending retry. */
 export async function loadPendingPropertySends(): Promise<PendingPropertySend[]> {
   try {
@@ -151,12 +167,32 @@ export async function loadPendingPropertySends(): Promise<PendingPropertySend[]>
 }
 
 /** Remove a successfully sent property mutation from the retry queue. */
-export async function clearPendingPropertySend(key: string): Promise<void> {
+export async function clearPendingPropertySend(key: string, queuedAt?: number): Promise<void> {
   try {
     const db = await getDb()
-    await db.delete('pendingPropertySends', key)
+    if (queuedAt === undefined) {
+      await db.delete('pendingPropertySends', key)
+      return
+    }
+    const tx = db.transaction('pendingPropertySends', 'readwrite')
+    const current = await tx.store.get(key)
+    if (current && current.queuedAt === queuedAt) await tx.store.delete(key)
+    await tx.done
   } catch (e) {
     logger.warn('Failed to clear pending property send:', e)
+  }
+}
+
+export async function clearPendingPropertySendsForClinic(clinicId: string): Promise<void> {
+  try {
+    const db = await getDb()
+    const all = await db.getAll('pendingPropertySends')
+    const stale = all.filter((s) => s.authoringClinicId === clinicId)
+    if (stale.length === 0) return
+    const tx = db.transaction('pendingPropertySends', 'readwrite')
+    await Promise.all([...stale.map((s) => tx.store.delete(s.key)), tx.done])
+  } catch (e) {
+    logger.warn('Failed to clear pending property sends for clinic:', e)
   }
 }
 

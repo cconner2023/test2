@@ -13,6 +13,7 @@ import type { ClinicMedic } from '../Types/SupervisorTestTypes'
 import type { ClinicHuddleTask } from './supervisorService'
 import { getDisplayName } from '../Utilities/nameUtils'
 import { downloadBlob } from '../Utilities/downloadUtils'
+import { csvCell } from '../Utilities/csvSafe'
 
 // ---- Helpers ----
 
@@ -164,11 +165,6 @@ export async function shareCalendar(events: CalendarEvent[], options?: IcsExport
 // personnel assignments — it is a local file (download / Web Share), never a
 // message on the wire, and the assignment grid is the entire point.
 
-function csvCell(value: string): string {
-  // Quote any field containing a delimiter, quote, or newline; double inner quotes.
-  return /[",\n\r]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value
-}
-
 /** "0700" — 24h HHMM in local time, matching the T2T timeline labels. */
 function hhmm(iso: string): string {
   const d = new Date(iso)
@@ -255,7 +251,8 @@ export function generateTroopsToTaskCsv(events: CalendarEvent[], options: T2TCsv
 
   // ── Tasks section — huddle band: provider row + one row per station ──
   rows.push([])
-  rows.push(['--- TASKS ---'])
+  const tasksSeparator = ['--- TASKS ---']
+  rows.push(tasksSeparator)
 
   const providerCells = dayKeys.map(key =>
     scoped
@@ -275,7 +272,7 @@ export function generateTroopsToTaskCsv(events: CalendarEvent[], options: T2TCsv
     rows.push([task.name, '', ...cells])
   }
 
-  return rows.map(cols => cols.map(csvCell).join(',')).join('\r\n')
+  return rows.map(cols => cols === tasksSeparator ? cols.join(',') : cols.map(csvCell).join(',')).join('\r\n')
 }
 
 /**

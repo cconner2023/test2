@@ -356,11 +356,14 @@ const AdminClinicDetail = ({
     }
   }, [editName, editLocationId, editUics, editParentClinicId, editAssociatedClinicIds, isCreateMode, clinic, loadData, onCreated, createPrefill, commitForm])
 
+  const provisionInFlightRef = useRef(false)
   const handleProvisionVault = useCallback(async () => {
-    if (!clinic?.id) return
+    if (!clinic?.id || provisionInFlightRef.current) return
+    provisionInFlightRef.current = true
     setVaultProvisioning(true)
     setVaultResult(null)
     const result = await rescueClinicVault(clinic.id)
+    provisionInFlightRef.current = false
     setVaultProvisioning(false)
     if (result.success) {
       setVaultMissing(false)
@@ -370,11 +373,14 @@ const AdminClinicDetail = ({
     }
   }, [clinic?.id])
 
+  const rescueInFlightRef = useRef(false)
   const handleRescueAssociations = useCallback(async () => {
-    if (!clinic?.location_id) return
+    if (!clinic?.location_id || rescueInFlightRef.current) return
+    rescueInFlightRef.current = true
     setRescuing(true)
     setRescueResult(null)
     const result = await rescueClinicAssociationsByLocation(clinic.location_id)
+    rescueInFlightRef.current = false
     setRescuing(false)
     if (result.success) {
       setRescueResult(`Re-associated ${result.touched} clinic${result.touched === 1 ? '' : 's'} at this location.`)

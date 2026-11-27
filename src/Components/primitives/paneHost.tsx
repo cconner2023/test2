@@ -71,7 +71,7 @@ type FallbackCard = Pick<PaneCardProps, 'title' | 'onClose' | 'actions' | 'child
 
 /** The single card. A published view wins over the host's own `fallback`. Esc is
  *  the publisher's while it holds the card (it may drill back first). */
-export function HostedPaneCard({ store, fallback, zIndex }: { store: PaneHostStore; fallback: FallbackCard; zIndex?: number }) {
+export function HostedPaneCard({ store, fallback, zIndex, hidden }: { store: PaneHostStore; fallback: FallbackCard; zIndex?: number; hidden?: boolean }) {
   const view = useSyncExternalStore(store.subscribe, store.get)
   if (view) {
     return (
@@ -85,6 +85,7 @@ export function HostedPaneCard({ store, fallback, zIndex }: { store: PaneHostSto
         actions={view.actions}
         footer={view.footer}
         zIndex={zIndex}
+        hidden={hidden}
       >
         {view.body}
       </PaneCard>
@@ -97,6 +98,7 @@ export function HostedPaneCard({ store, fallback, zIndex }: { store: PaneHostSto
       title={fallback.title}
       actions={fallback.actions}
       zIndex={zIndex}
+      hidden={hidden}
     >
       {fallback.children}
     </PaneCard>

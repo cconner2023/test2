@@ -679,6 +679,39 @@ html {
     animation: surfaceIn 0.3s var(--surface-ease) both;
 }
 
+@keyframes morphContentIn {
+    from { opacity: 0; transform: translateX(12px); }
+    to { opacity: 1; transform: none; }
+}
+
+@keyframes morphFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes morphContentOut {
+    from { opacity: 1; }
+    to { opacity: 0; }
+}
+
+[data-morph="out"] > *,
+.morph-content-out {
+    animation: morphContentOut 120ms ease both;
+}
+
+[data-morph="hidden"] {
+    visibility: hidden;
+}
+
+[data-morph="in"] > *,
+.morph-content-in {
+    animation: morphContentIn 300ms var(--surface-ease) both;
+}
+
+[data-morph="in"] > [data-morph-fade] {
+    animation-name: morphFadeIn;
+}
+
 .animate-surface-in-down {
     animation: surfaceInDown 0.3s var(--surface-ease) both;
 }

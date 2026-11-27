@@ -10,6 +10,7 @@ import { Chip, ChipBar } from '@/Components/primitives/Chip'
 import { FieldCell } from '@/Components/primitives/FieldCell'
 import { EmptyState } from '@/Components/primitives/EmptyState'
 import type { TC3VitalSet, AVPU } from '../../Types/TC3Types'
+import { toDateKey } from '../../Utilities/dates'
 
 const AVPU_OPTIONS: AVPU[] = ['A', 'V', 'P', 'U']
 
@@ -311,7 +312,7 @@ function VitalSetPreviewContent({ id }: { id: string }) {
   const htHint = ht && !isNaN(htNum) ? `${(htNum * 2.54).toFixed(0)}cm · ${Math.floor(htNum / 12)}'${Math.round(htNum % 12)}"` : null
   const wtNum = parseFloat(wt)
   const wtHint = wt && !isNaN(wtNum) ? `${(wtNum * 0.453592).toFixed(0)}kg` : null
-  const todayIso = new Date().toISOString().slice(0, 10)
+  const todayIso = toDateKey(new Date())
   const cellInput = 'w-full bg-transparent text-primary placeholder:text-tertiary focus:outline-none text-base md:text-sm'
 
   // BMI derived from Ht/Wt (inches + lbs → BMI)

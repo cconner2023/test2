@@ -131,7 +131,7 @@ export const TC3Drawer = memo(function TC3Drawer({ isVisible, onClose }: TC3Draw
       <BaseDrawer
         isVisible={isVisible}
         onClose={onClose}
-        mobileFullScreen
+        mobilePanel
         fullHeight="95dvh"
         header={header}
         glassHeader={isMobile}

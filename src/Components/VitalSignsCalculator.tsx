@@ -4,6 +4,7 @@ import { Chip, ChipBar } from '@/Components/primitives/Chip'
 import { FieldCell, FieldGrid } from '@/Components/primitives/FieldCell'
 import { BloodPressureInput } from '@/Components/DomainInputs'
 import { Calendar as CalendarIcon } from 'lucide-react'
+import { toDateKey } from '../Utilities/dates'
 
 export interface VitalSignsCalculatorHandle {
     reset: () => void
@@ -73,7 +74,7 @@ export const VitalSignsCalculator = forwardRef<VitalSignsCalculatorHandle, Vital
         setWtUnit(u => (u === 'lbs' ? 'kg' : 'lbs'))
     }, [vitals.wt, wtUnit, setValue])
 
-    const todayIso = new Date().toISOString().slice(0, 10)
+    const todayIso = toDateKey(new Date())
     const lmpDisplay = useMemo(() => {
         if (!vitals.lmp) return null
         const d = new Date(vitals.lmp + 'T00:00:00')

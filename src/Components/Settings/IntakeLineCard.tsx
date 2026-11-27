@@ -8,7 +8,7 @@ import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
 import { FooterPill } from '@/Components/primitives/FooterPill'
 import { ActionButton } from '@/Components/primitives/ActionButton'
 import { OverlayActionMenu } from '@/Components/primitives/OverlayActionMenu'
-import { PreviewOverlay } from '../PreviewOverlay'
+import { PaneStack, type StackScreen } from '@/Components/primitives/PaneStack'
 import { TextInput } from '@/Components/primitives/FormInputs'
 import { SectionCard, PageSectionHeader } from '@/Components/primitives/Section'
 import { validatePasswordComplexity } from '../../lib/constants'
@@ -70,8 +70,8 @@ export function IntakeLineCard({
   const [error, setError] = useState<string | null>(null)
   const [formError, setFormError] = useState<string | null>(null)
 
-  const [rotatePassphraseAnchor, setRotatePassphraseAnchor] = useState<DOMRect | null>(null)
-  const [editAnchor, setEditAnchor] = useState<DOMRect | null>(null)
+  const [rotatePassphraseOpen, setRotatePassphraseOpen] = useState(false)
+  const [editOpen, setEditOpen] = useState(false)
   const [confirmRotatePasscode, setConfirmRotatePasscode] = useState(false)
   const [confirmKill, setConfirmKill] = useState(false)
 
@@ -83,8 +83,6 @@ export function IntakeLineCard({
     subClusters: line.scope_sub_clusters,
     members: line.scope_members,
   })
-
-  const cardRef = useRef<HTMLDivElement | null>(null)
 
   const oncallEnabled = line.oncall_enabled === true
   const messageEnabled = line.outside_message_enabled === true
@@ -139,7 +137,7 @@ export function IntakeLineCard({
       const res = await rotateIntakeLinePassphrase(line.id, { passphrase: rotPass1 })
       if (!res.ok) { setFormError(res.error); return }
       setFormError(null)
-      setRotatePassphraseAnchor(null)
+      setRotatePassphraseOpen(false)
       onChanged()
     } finally {
       setBusy(false)
@@ -189,16 +187,165 @@ export function IntakeLineCard({
       const res = await setIntakeLineScope(line.id, draftScope.current)
       if (!res.ok) { setFormError(res.error); return }
       setFormError(null)
-      setEditAnchor(null)
+      setEditOpen(false)
       onChanged()
     } finally {
       setBusy(false)
     }
   }, [line.id, line.name, draftName, onChanged])
 
+  const closeEdit = useCallback(() => { if (!busy) { setEditOpen(false); setFormError(null) } }, [busy])
+  const closeRotatePassphrase = useCallback(() => { if (!busy) { setRotatePassphraseOpen(false); setFormError(null) } }, [busy])
+
+  const editScreens: Record<string, StackScreen> = {
+    edit: {
+      title: 'Edit',
+      rightFooter: draftName.trim().length > 0 && !busy ? (
+        <FooterPill side="right">
+          <ActionButton icon={Check} label="Save" variant="confirm" onClick={onEditConfirm} />
+        </FooterPill>
+      ) : undefined,
+      render: () => (
+        <div className="pb-2">
+          <div className="px-3 pt-2">
+            <PageSectionHeader>Name</PageSectionHeader>
+            <TextInput
+              value={draftName}
+              onChange={setDraftName}
+              placeholder="SD phone"
+              ariaLabel="Line name"
+            />
+          </div>
+
+          <div className="px-3 pt-4">
+            <PageSectionHeader>Channels</PageSectionHeader>
+          </div>
+          <div className="mx-3 rounded-xl bg-themewhite2 overflow-hidden">
+            {/* Intake also reaches HQ supervisors regardless of allotment — a
+                squad-scoped line with no supervisor would otherwise drop the
+                request silently. */}
+            <SettingsToggleRow
+              icon={CalendarPlus}
+              label="Event requests"
+              subtitle={intakeEnabled
+                ? 'Outside parties can request event coverage'
+                : 'Outside parties cannot submit event requests'}
+              checked={intakeEnabled}
+              onChange={() => void toggleChannel('intake_enabled', intakeEnabled, setLineIntakeEnabled)}
+              disabled={channelBusy === 'intake_enabled'}
+              activeColor="text-themeblue3"
+              activeBg="bg-themeblue3/15"
+            />
+
+            <SettingsToggleRow
+              icon={Headset}
+              label="Calls"
+              subtitle={oncallEnabled
+                ? 'Outside callers can ring whoever is on duty'
+                : 'Outside callers cannot request a live call'}
+              checked={oncallEnabled}
+              onChange={() => void toggleChannel('oncall_enabled', oncallEnabled, setLineOncallEnabled)}
+              disabled={channelBusy === 'oncall_enabled'}
+              divided
+              activeColor="text-themeblue3"
+              activeBg="bg-themeblue3/15"
+            />
+
+            <SettingsToggleRow
+              icon={MessageSquare}
+              label="Text messaging"
+              subtitle={messageEnabled
+                ? 'Outside senders can drop a sealed one-way note to this line'
+                : 'Outside senders cannot message this line'}
+              checked={messageEnabled}
+              onChange={() => void toggleChannel('outside_message_enabled', messageEnabled, setLineMessageEnabled)}
+              disabled={channelBusy === 'outside_message_enabled'}
+              divided
+              activeColor="text-themeblue3"
+              activeBg="bg-themeblue3/15"
+            />
+
+            {/* Outbound is medic-initiated and NOT line-routed: any line permitting
+                it opens the compose surface for the whole cluster, so the allotment
+                below does not narrow it. */}
+            <SettingsToggleRow
+              icon={Send}
+              label="Outbound contact"
+              subtitle={outboundEnabled
+                ? 'Members can email a secure 1:1 invite to an outside recipient'
+                : 'Members cannot start outbound outside contact'}
+              checked={outboundEnabled}
+              onChange={() => void toggleChannel('outbound_enabled', outboundEnabled, setLineOutboundEnabled)}
+              disabled={channelBusy === 'outbound_enabled'}
+              divided
+              activeColor="text-themeblue3"
+              activeBg="bg-themeblue3/15"
+            />
+          </div>
+
+          <div className="px-3 pt-4">
+            <PageSectionHeader>Routing</PageSectionHeader>
+          </div>
+          <IntakeLineScopeEditor
+            initial={{
+              scopeMode: line.scope_mode,
+              subClusters: line.scope_sub_clusters,
+              members: line.scope_members,
+            }}
+            subClusters={subClusters}
+            onChange={(next) => { draftScope.current = next }}
+          />
+          {formError && <p className="text-[10pt] text-themeredred px-4 pb-2">{formError}</p>}
+        </div>
+      ),
+    },
+  }
+
+  const rotateScreens: Record<string, StackScreen> = {
+    rotate: {
+      title: 'Rotate passphrase',
+      footer: (
+        <FooterPill>
+          <ActionButton
+            icon={Dices}
+            label="Random"
+            onClick={() => {
+              const p = generatePassphrase()
+              setRotPass1(p); setRotPass2(p); setFormError(null)
+            }}
+          />
+        </FooterPill>
+      ),
+      rightFooter: !busy ? (
+        <FooterPill side="right">
+          <ActionButton icon={Check} label="Rotate" variant="confirm" onClick={onRotatePassphraseConfirm} />
+        </FooterPill>
+      ) : undefined,
+      render: () => (
+        <div className="px-3 py-2 space-y-2">
+          <TextInput
+            label="Passphrase"
+            value={rotPass1}
+            onChange={setRotPass1}
+            placeholder="New passphrase"
+            hint={rotPass1.length > 0 ? validatePasswordComplexity(rotPass1) : null}
+          />
+          <TextInput
+            label="Confirm"
+            value={rotPass2}
+            onChange={setRotPass2}
+            placeholder="Confirm new passphrase"
+            hint={rotPass2.length > 0 && rotPass1 !== rotPass2 ? 'Passphrases do not match' : null}
+          />
+          {formError && <p className="text-[10pt] text-themeredred px-1">{formError}</p>}
+        </div>
+      ),
+    },
+  }
+
   return (
     <div className="relative">
-      <SectionCard ref={cardRef}>
+      <SectionCard>
         <div className="px-4 py-4">
           <div className="flex items-center gap-4">
             <div className="flex-1 min-w-0">
@@ -310,7 +457,7 @@ export function IntakeLineCard({
                 subClusters: line.scope_sub_clusters,
                 members: line.scope_members,
               }
-              if (cardRef.current) setEditAnchor(cardRef.current.getBoundingClientRect())
+              setEditOpen(true)
             },
           },
           { key: 'rotate-passcode', label: 'Rotate passcode', icon: RefreshCw, onAction: () => setConfirmRotatePasscode(true) },
@@ -320,7 +467,7 @@ export function IntakeLineCard({
             icon: KeyRound,
             onAction: () => {
               setFormError(null); setRotPass1(''); setRotPass2('')
-              if (cardRef.current) setRotatePassphraseAnchor(cardRef.current.getBoundingClientRect())
+              setRotatePassphraseOpen(true)
             },
           },
           { key: 'kill', label: 'Kill line', icon: Trash2, destructive: true, onAction: () => setConfirmKill(true) },
@@ -335,162 +482,22 @@ export function IntakeLineCard({
            allotment behind it answers and reaches nobody. The switches write
            immediately (one RPC each, like every other settings toggle); Save
            applies name + allotment. */}
-      <PreviewOverlay
-        isOpen={!!editAnchor}
-        onClose={() => { setEditAnchor(null); setFormError(null) }}
-        anchorRect={editAnchor}
-        title="Edit"
-        maxWidth={360}
-        rightFooter={
-          <FooterPill side="right">
-            <ActionButton
-              icon={Check}
-              label="Save"
-              variant={busy || draftName.trim().length === 0 ? 'disabled' : 'confirm'}
-              onClick={onEditConfirm}
-            />
-          </FooterPill>
-        }
-      >
-        <div className="px-3 pt-2">
-          <PageSectionHeader>Name</PageSectionHeader>
-          <TextInput
-            value={draftName}
-            onChange={setDraftName}
-            placeholder="SD phone"
-            ariaLabel="Line name"
-          />
-        </div>
-
-        <div className="px-3 pt-4">
-          <PageSectionHeader>Channels</PageSectionHeader>
-        </div>
-        <div className="mx-3 rounded-xl bg-themewhite2 overflow-hidden">
-          {/* Intake also reaches HQ supervisors regardless of allotment — a
-              squad-scoped line with no supervisor would otherwise drop the
-              request silently. */}
-          <SettingsToggleRow
-            icon={CalendarPlus}
-            label="Event requests"
-            subtitle={intakeEnabled
-              ? 'Outside parties can request event coverage'
-              : 'Outside parties cannot submit event requests'}
-            checked={intakeEnabled}
-            onChange={() => void toggleChannel('intake_enabled', intakeEnabled, setLineIntakeEnabled)}
-            disabled={channelBusy === 'intake_enabled'}
-            activeColor="text-themeblue3"
-            activeBg="bg-themeblue3/15"
-          />
-
-          <SettingsToggleRow
-            icon={Headset}
-            label="Calls"
-            subtitle={oncallEnabled
-              ? 'Outside callers can ring whoever is on duty'
-              : 'Outside callers cannot request a live call'}
-            checked={oncallEnabled}
-            onChange={() => void toggleChannel('oncall_enabled', oncallEnabled, setLineOncallEnabled)}
-            disabled={channelBusy === 'oncall_enabled'}
-            divided
-            activeColor="text-themeblue3"
-            activeBg="bg-themeblue3/15"
-          />
-
-          <SettingsToggleRow
-            icon={MessageSquare}
-            label="Text messaging"
-            subtitle={messageEnabled
-              ? 'Outside senders can drop a sealed one-way note to this line'
-              : 'Outside senders cannot message this line'}
-            checked={messageEnabled}
-            onChange={() => void toggleChannel('outside_message_enabled', messageEnabled, setLineMessageEnabled)}
-            disabled={channelBusy === 'outside_message_enabled'}
-            divided
-            activeColor="text-themeblue3"
-            activeBg="bg-themeblue3/15"
-          />
-
-          {/* Outbound is medic-initiated and NOT line-routed: any line permitting
-              it opens the compose surface for the whole cluster, so the allotment
-              below does not narrow it. */}
-          <SettingsToggleRow
-            icon={Send}
-            label="Outbound contact"
-            subtitle={outboundEnabled
-              ? 'Members can email a secure 1:1 invite to an outside recipient'
-              : 'Members cannot start outbound outside contact'}
-            checked={outboundEnabled}
-            onChange={() => void toggleChannel('outbound_enabled', outboundEnabled, setLineOutboundEnabled)}
-            disabled={channelBusy === 'outbound_enabled'}
-            divided
-            activeColor="text-themeblue3"
-            activeBg="bg-themeblue3/15"
-          />
-        </div>
-
-        <div className="px-3 pt-4">
-          <PageSectionHeader>Routing</PageSectionHeader>
-        </div>
-        <IntakeLineScopeEditor
-          initial={{
-            scopeMode: line.scope_mode,
-            subClusters: line.scope_sub_clusters,
-            members: line.scope_members,
-          }}
-          subClusters={subClusters}
-          onChange={(next) => { draftScope.current = next }}
-        />
-        {formError && <p className="text-[10pt] text-themeredred px-4 pb-2">{formError}</p>}
-      </PreviewOverlay>
+      <PaneStack
+        isOpen={editOpen}
+        onClose={closeEdit}
+        initial={{ key: 'edit' }}
+        screens={editScreens}
+        loading={busy}
+      />
 
       {/* ── Rotate passphrase ───────────────────────────────────── */}
-      <PreviewOverlay
-        isOpen={!!rotatePassphraseAnchor}
-        onClose={() => { setRotatePassphraseAnchor(null); setFormError(null) }}
-        anchorRect={rotatePassphraseAnchor}
-        title="Rotate passphrase"
-        maxWidth={360}
-        footer={
-          <FooterPill>
-            <ActionButton
-              icon={Dices}
-              label="Random"
-              onClick={() => {
-                const p = generatePassphrase()
-                setRotPass1(p); setRotPass2(p); setFormError(null)
-              }}
-            />
-          </FooterPill>
-        }
-        rightFooter={
-          <FooterPill side="right">
-            <ActionButton
-              icon={Check}
-              label="Rotate"
-              variant={busy ? 'disabled' : 'confirm'}
-              onClick={onRotatePassphraseConfirm}
-            />
-          </FooterPill>
-        }
-      >
-        <div className="px-3 py-2 space-y-2">
-          <TextInput
-            label="Passphrase"
-            value={rotPass1}
-            onChange={setRotPass1}
-            placeholder="New passphrase"
-            hint={rotPass1.length > 0 ? validatePasswordComplexity(rotPass1) : null}
-          />
-          <TextInput
-            label="Confirm"
-            value={rotPass2}
-            onChange={setRotPass2}
-            placeholder="Confirm new passphrase"
-            hint={rotPass2.length > 0 && rotPass1 !== rotPass2 ? 'Passphrases do not match' : null}
-          />
-          {formError && <p className="text-[10pt] text-themeredred px-1">{formError}</p>}
-        </div>
-      </PreviewOverlay>
+      <PaneStack
+        isOpen={rotatePassphraseOpen}
+        onClose={closeRotatePassphrase}
+        initial={{ key: 'rotate' }}
+        screens={rotateScreens}
+        loading={busy}
+      />
 
       <ConfirmDialog
         visible={confirmRotatePasscode}

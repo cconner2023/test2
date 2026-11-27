@@ -13,6 +13,7 @@ import { unwrapOutsidePriv } from '../../lib/outsideEntityKey'
 import { sealPair, openAsOutside } from '../../lib/outsideEntitySeal'
 import { Shell, Glitch404 } from './IntakeForm'
 import { LoadingOverlay } from '@/Components/primitives/LoadingOverlay'
+import { downloadBlob } from '../../Utilities/downloadUtils'
 
 interface OutsideInviteViewProps {
   supabase: SupabaseClient
@@ -331,17 +332,19 @@ function AttachmentBubble({ supabase, entityId, att }: { supabase: SupabaseClien
   const [url, setUrl] = useState<string | null>(null)
   const [state, setState] = useState<'idle' | 'loading' | 'failed'>('idle')
   const urlRef = useRef<string | null>(null)
+  const blobRef = useRef<Blob | null>(null)
 
-  const load = useCallback(async (): Promise<string | null> => {
-    if (urlRef.current) return urlRef.current
+  const load = useCallback(async (): Promise<Blob | null> => {
+    if (blobRef.current) return blobRef.current
     setState('loading')
     const blob = await fetchOutsideEntityAttachment(supabase, entityId, att)
     if (!blob) { setState('failed'); return null }
     const u = URL.createObjectURL(blob)
+    blobRef.current = blob
     urlRef.current = u
     setUrl(u)
     setState('idle')
-    return u
+    return blob
   }, [supabase, entityId, att])
 
   useEffect(() => {
@@ -350,15 +353,10 @@ function AttachmentBubble({ supabase, entityId, att }: { supabase: SupabaseClien
   }, [att.kind, load])
 
   const save = useCallback(async () => {
-    const u = await load()
-    if (!u) return
-    const a = document.createElement('a')
-    a.href = u
-    a.download = att.kind === 'image' ? 'photo.jpg' : att.name
-    a.rel = 'noopener'
-    document.body.appendChild(a)
-    a.click()
-    a.remove()
+    const filename = att.kind === 'image' ? 'photo.jpg' : att.name
+    if (blobRef.current) { downloadBlob(blobRef.current, filename); return }
+    const blob = await load()
+    if (blob) downloadBlob(blob, filename)
   }, [load, att.kind, att.name])
 
   if (att.kind === 'image') {

@@ -1,8 +1,10 @@
-import { memo } from 'react'
+import { memo, useState } from 'react'
 import { Trash2, UserPlus, RotateCcw, FileText, Download } from 'lucide-react'
 import { useTC3Store } from '../../stores/useTC3Store'
 import { PreviewOverlay } from '../PreviewOverlay'
-import { ActionButton } from '@/Components/primitives/ActionButton'
+import { AnchoredMenu } from '@/Components/primitives/LiftedRowMenu'
+import { ListItemRow, RowMoreButton } from '@/Components/primitives/ListItemRow'
+import { type ContextMenuItem } from '@/Components/primitives/ContextMenu'
 import type { TC3Card } from '../../Types/TC3Types'
 import { orderByPriority, buildCasualtyStops, bandOf, BAND_META } from './casualtyOrder'
 
@@ -15,39 +17,33 @@ interface CasualtyRowProps {
   label: string
   isActive: boolean
   onSelect: () => void
-  onReset: () => void
-  onDiscard: () => void
-  onViewNote: () => void
+  onMore: (rect: DOMRect) => void
 }
 
-function CasualtyRow({ card, label, isActive, onSelect, onReset, onDiscard, onViewNote }: CasualtyRowProps) {
+function CasualtyRow({ card, label, isActive, onSelect, onMore }: CasualtyRowProps) {
   const band = bandOf(card)
   const dotColor = band
     ? BAND_META[band]?.color ?? 'bg-tertiary/30'
     : isActive ? 'bg-themeblue2' : 'bg-tertiary/30'
 
   return (
-    <button
-      type="button"
+    <ListItemRow
+      as="div"
       onClick={isActive ? undefined : onSelect}
-      disabled={isActive}
-      className={`w-full flex items-center gap-3 px-4 py-3 border-b border-tertiary/8 last:border-0 text-left transition-colors ${
+      className={`px-4 py-3 border-b border-tertiary/8 last:border-0 transition-colors ${
         isActive
           ? 'bg-themeblue2/8 cursor-default'
-          : 'hover:bg-themeblue2/4 active:bg-themeblue2/8'
+          : 'cursor-pointer hover:bg-themeblue2/4 active:bg-themeblue2/8'
       }`}
-    >
-      <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${isActive ? 'ring-2 ring-themeblue2/30' : ''} ${dotColor}`} />
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-primary truncate">{label}</p>
-        <p className="text-[9pt] text-secondary mt-0.5 truncate">{casualtyName(card)}</p>
-      </div>
-      <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
-        <ActionButton icon={FileText} label="View note" onClick={onViewNote} />
-        <ActionButton icon={RotateCcw} label="Reset" onClick={onReset} />
-        <ActionButton icon={Trash2} label="Discard" onClick={onDiscard} variant="danger" />
-      </div>
-    </button>
+      left={<div className={`w-2.5 h-2.5 rounded-full shrink-0 ${isActive ? 'ring-2 ring-themeblue2/30' : ''} ${dotColor}`} />}
+      center={
+        <>
+          <p className="text-sm font-medium text-primary truncate">{label}</p>
+          <p className="text-[9pt] text-secondary mt-0.5 truncate">{casualtyName(card)}</p>
+        </>
+      }
+      right={<RowMoreButton onMore={onMore} />}
+    />
   )
 }
 
@@ -66,6 +62,7 @@ export const CasualtyQueue = memo(function CasualtyQueue({ isOpen, onClose }: Ca
   const resetCard = useTC3Store((s) => s.resetCard)
   const openExportForCard = useTC3Store((s) => s.openExportForCard)
   const openExportForCards = useTC3Store((s) => s.openExportForCards)
+  const [menu, setMenu] = useState<{ cardId: string; rect: DOMRect } | null>(null)
 
   // Triage order: sort by evac-priority band, then creation time within a band.
   const all = orderByPriority([
@@ -89,6 +86,15 @@ export const CasualtyQueue = memo(function CasualtyQueue({ isOpen, onClose }: Ca
     }
   }
 
+  const menuEntry = menu ? all.find((a) => a.card.id === menu.cardId) : null
+  const menuItems: ContextMenuItem[] = menuEntry
+    ? [
+        { key: 'view', label: 'View note', icon: FileText, onAction: () => { onClose(); openExportForCard(menuEntry.card) } },
+        { key: 'reset', label: 'Reset', icon: RotateCcw, onAction: menuEntry.isActive ? resetCard : () => handleSelect(menuEntry.card.id) },
+        { key: 'discard', label: 'Discard', icon: Trash2, destructive: true, onAction: () => handleDiscard(menuEntry.card.id, menuEntry.isActive) },
+      ]
+    : []
+
   const actions = [
     ...(all.length > 1 ? [{ key: 'export-all', label: 'Export All', icon: Download, onAction: () => openExportForCards(all.map(({ card: c }) => c)), closesOnAction: true as const }] : []),
     { key: 'new', label: 'New Casualty', icon: UserPlus, onAction: pushToQueue, closesOnAction: true as const },
@@ -111,11 +117,19 @@ export const CasualtyQueue = memo(function CasualtyQueue({ isOpen, onClose }: Ca
           label={labelById.get(c.id) ?? ''}
           isActive={isActive}
           onSelect={() => handleSelect(c.id)}
-          onReset={isActive ? resetCard : () => handleSelect(c.id)}
-          onDiscard={() => handleDiscard(c.id, isActive)}
-          onViewNote={() => { onClose(); openExportForCard(c) }}
+          onMore={(rect) => setMenu({ cardId: c.id, rect })}
         />
       ))}
+      {menu && menuEntry && (
+        <AnchoredMenu
+          isOpen
+          layout="list"
+          align="right"
+          anchorRect={menu.rect}
+          onClose={() => setMenu(null)}
+          items={menuItems}
+        />
+      )}
     </PreviewOverlay>
   )
 })

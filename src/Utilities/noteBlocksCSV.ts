@@ -39,7 +39,9 @@ import type { TemplateNode, ChoiceNode, BranchNode } from '../Data/TemplateTypes
 import { getChoiceLabels } from './templateEngine'
 import { MASTER_BLOCKS } from '../Data/PhysicalExamData'
 import type { NoteBlocksData } from '../lib/objectBundle'
-import { neutralizeCsvFormula, restoreCsvFormula } from './csvSafe'
+import { csvCell, restoreCsvFormula } from './csvSafe'
+import { downloadCSVString } from './downloadUtils'
+import { toDateKey } from './dates'
 
 export type NoteBlocksCSVKind = 'templates' | 'orderSets' | 'providerTemplates'
 
@@ -50,14 +52,6 @@ export interface CsvParseCtx {
 }
 
 // ── Low-level CSV (shares the shape of PropertyCSV's helpers) ────────────────
-
-function escapeCSVField(raw: string): string {
-  const value = neutralizeCsvFormula(raw)
-  if (value.includes(',') || value.includes('"') || value.includes('\n') || value.includes('\r')) {
-    return `"${value.replace(/"/g, '""')}"`
-  }
-  return value
-}
 
 /** Split text into logical CSV rows, respecting quoted newlines. */
 function splitCSVLines(text: string): string[] {
@@ -103,16 +97,6 @@ function parseCSVRow(line: string): string[] {
   return fields.map(restoreCsvFormula)
 }
 
-function downloadCSVString(csv: string, filename: string): void {
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  a.click()
-  setTimeout(() => URL.revokeObjectURL(url), 0)
-}
-
 function splitList(cell: string): string[] {
   return cell.split(/[;\n]/).map(t => t.trim()).filter(Boolean)
 }
@@ -120,7 +104,7 @@ function splitList(cell: string): string[] {
 function buildRow(fields: string[], headerCount: number): string {
   const padded = [...fields]
   while (padded.length < headerCount) padded.push('')
-  return padded.map(escapeCSVField).join(',')
+  return padded.map(csvCell).join(',')
 }
 
 // ── Template body markup ←→ TemplateNode[] ───────────────────────────────────
@@ -366,7 +350,7 @@ export function exportProviderTemplatesCSV(templates: ProviderNoteTemplate[], or
 }
 
 function download(lines: string[], base: string): void {
-  downloadCSVString(lines.join('\r\n'), `${base}-${new Date().toISOString().slice(0, 10)}.csv`)
+  downloadCSVString(lines.join('\r\n'), `${base}-${toDateKey(new Date())}.csv`)
 }
 
 // ── Starter templates ─────────────────────────────────────────────────────────

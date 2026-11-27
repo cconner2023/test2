@@ -1,9 +1,8 @@
 import { useState, useRef } from 'react'
-import { Upload, CheckCircle2 } from 'lucide-react'
+import { Upload, CheckCircle2, AlertCircle } from 'lucide-react'
 import { LoadingSpinner } from '@/Components/primitives/LoadingSpinner'
 import { Section, SectionCard } from '@/Components/primitives/Section'
-import { useCalendarVault } from '../../Hooks/useCalendarVault'
-import { useCalendarStore } from '../../stores/useCalendarStore'
+import { useCalendarWrite } from '../../Hooks/useCalendarWrite'
 import { generateId } from '../../Types/CalendarTypes'
 import { parseCalendarCSV, downloadCalendarCSVTemplate } from '../../lib/calendarCSV'
 import type { ParsedCalendarRow } from '../../lib/calendarCSV'
@@ -24,15 +23,17 @@ export function CalendarCSVImport({ onClose, clinicId, userId }: CalendarCSVImpo
   const [parsedRows, setParsedRows] = useState<ParsedCalendarRow[]>([])
   const [parseErrors, setParseErrors] = useState<string[]>([])
   const [importedCount, setImportedCount] = useState(0)
+  const [failedCount, setFailedCount] = useState(0)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const { sendEvent } = useCalendarVault()
+  const { writeEvent } = useCalendarWrite()
 
   function handleClose() {
     setStep('pick')
     setParsedRows([])
     setParseErrors([])
     setImportedCount(0)
+    setFailedCount(0)
     onClose()
   }
 
@@ -58,7 +59,6 @@ export function CalendarCSVImport({ onClose, clinicId, userId }: CalendarCSVImpo
   async function handleImport() {
     setStep('importing')
     const now = new Date().toISOString()
-    const store = useCalendarStore.getState()
 
     const events = parsedRows.map(row => ({
       id: generateId(),
@@ -82,15 +82,17 @@ export function CalendarCSVImport({ onClose, clinicId, userId }: CalendarCSVImpo
       updated_at: now,
     }))
 
-    for (const ev of events) store.addEvent(ev)
-
+    let sent = 0
+    let failed = 0
     for (const ev of events) {
-      sendEvent('c', ev).then(originId => {
-        if (originId) useCalendarStore.getState().updateEvent(ev.id, { originId })
-      }).catch(() => {})
+      let ok = false
+      try { ok = await writeEvent(ev) } catch { ok = false }
+      if (ok) sent++
+      else failed++
     }
 
-    setImportedCount(events.length)
+    setImportedCount(sent)
+    setFailedCount(failed)
     setStep('done')
   }
 
@@ -212,8 +214,15 @@ export function CalendarCSVImport({ onClose, clinicId, userId }: CalendarCSVImpo
 
         {step === 'done' && (
           <div className="flex flex-col items-center justify-center py-16 gap-4">
-            <CheckCircle2 className="w-12 h-12 text-themegreen" />
+            {failedCount > 0
+              ? <AlertCircle className="w-12 h-12 text-themeredred" />
+              : <CheckCircle2 className="w-12 h-12 text-themegreen" />}
             <p className="text-sm text-primary font-medium">{importedCount} event{importedCount !== 1 ? 's' : ''} imported</p>
+            {failedCount > 0 && (
+              <p className="text-[10pt] text-secondary text-center px-6">
+                {failedCount} event{failedCount !== 1 ? 's' : ''} failed to send and {failedCount !== 1 ? 'are' : 'is'} saved on this device only.
+              </p>
+            )}
             <button
               onClick={handleClose}
               className="rounded-full px-8 py-3 text-sm font-medium bg-themeblue3 text-white active:scale-95 transition-all"

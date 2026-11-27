@@ -73,6 +73,7 @@ import { useTrainingCompletions } from '../Hooks/useTrainingCompletions'
 import { type TreeSelection } from './Settings/Supervisor/SupervisorTree'
 import type { ClinicMedic, StepResult } from '../Types/SupervisorTestTypes'
 import { SkeletonRows, SkeletonSections } from '@/Components/primitives/Skeleton'
+import { toLocalISOString } from '@/Utilities/dates'
 
 /** When the child computed what the parent is looking at. Published numbers are
  *  as old as their last fan, and a supervisor acting on them needs to know. */
@@ -917,8 +918,7 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
     tomorrow.setDate(tomorrow.getDate() + 1)
     tomorrow.setHours(9, 0, 0, 0)
     const when = lead.getTime() > Date.now() ? lead : tomorrow
-    const pad = (n: number) => `${n}`.padStart(2, '0')
-    const startISO = `${when.getFullYear()}-${pad(when.getMonth() + 1)}-${pad(when.getDate())}T${pad(when.getHours())}:${pad(when.getMinutes())}`
+    const startISO = toLocalISOString(when)
 
     requestNewCalendarEvent({
       title: `Certification renewal — ${cert.title}`,
@@ -1531,7 +1531,7 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
         desktopPosition="left"
         isVisible={isVisible}
         onClose={handleClose}
-        mobileFullScreen
+        mobilePanel
         header={headerConfig}
         scrollDisabled
         glassHeader={isMobile && !!headerConfig}

@@ -1592,7 +1592,58 @@ export async function deleteLocalMapOverlay(overlayId: string): Promise<void> {
  */
 export async function purgeClinicScopedData(clinicId: string): Promise<void> {
   const db = await getDb()
-  const stores = ['mapOverlays', 'propertyItems', 'propertyLocations', 'auditLog'] as const
+
+  let itemIds: string[] = []
+  let locationIds: string[] = []
+  try {
+    itemIds = (await db.getAllKeysFromIndex('propertyItems', 'by-clinic', clinicId)).map(String)
+    locationIds = (await db.getAllKeysFromIndex('propertyLocations', 'by-clinic', clinicId)).map(String)
+  } catch (e) {
+    logger.warn(`Failed to read property ids for clinic ${clinicId}:`, e)
+  }
+
+  if (itemIds.length > 0) {
+    try {
+      const tx = db.transaction('propertyDiscrepancies', 'readwrite')
+      for (const itemId of itemIds) {
+        const ids = await tx.store.index('by-item').getAllKeys(itemId)
+        for (const id of ids) tx.store.delete(id)
+      }
+      await tx.done
+    } catch (e) {
+      logger.warn(`Failed to purge propertyDiscrepancies for clinic ${clinicId}:`, e)
+    }
+  }
+
+  if (locationIds.length > 0) {
+    try {
+      const tx = db.transaction(['locationTags', 'locationTagCanvasMeta'], 'readwrite')
+      const tags = tx.objectStore('locationTags')
+      const meta = tx.objectStore('locationTagCanvasMeta')
+      for (const locationId of locationIds) {
+        const ids = await tags.index('by-location').getAllKeys(locationId)
+        for (const id of ids) tags.delete(id)
+        meta.delete(locationId)
+      }
+      await tx.done
+    } catch (e) {
+      logger.warn(`Failed to purge location tags for clinic ${clinicId}:`, e)
+    }
+  }
+
+  try {
+    const summaries = await db.getAll('echelonSummaries')
+    const stale = summaries.filter((s) => s.source_clinic_id === clinicId || s.parent_clinic_id === clinicId)
+    if (stale.length > 0) {
+      const tx = db.transaction('echelonSummaries', 'readwrite')
+      for (const s of stale) tx.store.delete(s.source_clinic_id)
+      await tx.done
+    }
+  } catch (e) {
+    logger.warn(`Failed to purge echelonSummaries for clinic ${clinicId}:`, e)
+  }
+
+  const stores = ['mapOverlays', 'propertyItems', 'propertyLocations', 'custodyLedger', 'auditLog'] as const
   for (const storeName of stores) {
     try {
       const ids = await db.getAllKeysFromIndex(storeName, 'by-clinic', clinicId)
@@ -1652,6 +1703,7 @@ export async function clearAllUserData(): Promise<void> {
     'auditLog', 'auditCursors', 'trainingCalendarLinks',
     'propertyItems', 'propertyLocations', 'propertyDiscrepancies', 'custodyLedger',
     'locationTags', 'locationTagCanvasMeta', 'mapOverlays', 'cachedTiles', 'tileMetadata',
+    'adminCache', 'echelonSummaries', 'trackBuffer',
     'featureVoteCycles', 'featureVoteCandidates', 'featureVotes', 'featureVoteSuggestions',
   ] as const
   // A DB whose version number outran its schema (a dev build that bumped

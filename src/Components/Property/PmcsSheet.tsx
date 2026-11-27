@@ -25,6 +25,7 @@ import { useClinicMedics } from '../../Hooks/useClinicMedics'
 import { uploadEncryptedAttachment } from '../../lib/signal'
 import type { PmcsDoc } from '../../lib/propertyService'
 import { createLogger } from '../../Utilities/Logger'
+import { getErrorMessage } from '../../Utilities/errorUtils'
 
 const logger = createLogger('PmcsSheet')
 
@@ -189,43 +190,60 @@ export function PmcsSheet({ isOpen, onClose, subjectType = 'item', subjectId, cl
     if (!canSubmit || busy) return
     setBusy(true)
     setDocError(null)
-
-    // Encrypt + upload the 5988E first (signal attachment pipeline: random AES key,
-    // ciphertext to the message-attachments bucket, key rides in the encrypted
-    // payload below). Abort the record if the upload fails so nothing logs without it.
-    let doc: PmcsDoc | undefined
-    if (docFile && userId) {
-      const pdf = await ensurePdfFile(docFile)
-      const up = await uploadEncryptedAttachment(userId, pdf, { class: 'p' })
-      if (!up.ok) {
-        logger.warn('5988E upload failed:', up.error)
-        setDocError('Could not upload the document — try again.')
-        setBusy(false)
-        return
+    try {
+      // Encrypt + upload the 5988E first (signal attachment pipeline: random AES key,
+      // ciphertext to the message-attachments bucket, key rides in the encrypted
+      // payload below). Abort the record if the upload fails so nothing logs without it.
+      let doc: PmcsDoc | undefined
+      if (docFile) {
+        if (!userId) {
+          setDocError('Could not upload the document — try again.')
+          return
+        }
+        let pdf: File
+        let up: Awaited<ReturnType<typeof uploadEncryptedAttachment>>
+        try {
+          pdf = await ensurePdfFile(docFile)
+          up = await uploadEncryptedAttachment(userId, pdf, { class: 'p' })
+        } catch (e) {
+          logger.warn('5988E upload failed:', e)
+          setDocError('Could not upload the document — try again.')
+          return
+        }
+        if (!up.ok) {
+          logger.warn('5988E upload failed:', up.error)
+          setDocError('Could not upload the document — try again.')
+          return
+        }
+        doc = { path: up.data.path, key: up.data.key, ...(up.data.store ? { store: up.data.store } : {}), mime: pdf.type || undefined, name: pdf.name }
       }
-      doc = { path: up.data.path, key: up.data.key, ...(up.data.store ? { store: up.data.store } : {}), mime: pdf.type || undefined, name: pdf.name }
-    }
 
-    const miles = parseInt(mileage, 10)
-    // Corrections committed this check — denormalize the description so the history
-    // row reads "Corrected: X" without resolving the originating check.
-    const correctedList = openFaults
-      .filter((f) => markedCorrect.has(f.id))
-      .map((f) => ({ id: f.id, description: f.description }))
-    const readings = {
-      ...(isVehicle ? {
-        mileage: Number.isFinite(miles) ? miles : undefined,
-        fuelLevel: fuelLevel ?? undefined,
-      } : {}),
-      ...(partyLabel(operator) ? { operator: partyLabel(operator) } : {}),
-      ...(partyLabel(mechanic) ? { mechanic: partyLabel(mechanic) } : {}),
-      ...(doc ? { doc } : {}),
-      ...(newFaults.length ? { faultsOpened: newFaults } : {}),
-      ...(correctedList.length ? { faultsCorrected: correctedList } : {}),
+      const miles = parseInt(mileage, 10)
+      // Corrections committed this check — denormalize the description so the history
+      // row reads "Corrected: X" without resolving the originating check.
+      const correctedList = openFaults
+        .filter((f) => markedCorrect.has(f.id))
+        .map((f) => ({ id: f.id, description: f.description }))
+      const readings = {
+        ...(isVehicle ? {
+          mileage: Number.isFinite(miles) ? miles : undefined,
+          fuelLevel: fuelLevel ?? undefined,
+        } : {}),
+        ...(partyLabel(operator) ? { operator: partyLabel(operator) } : {}),
+        ...(partyLabel(mechanic) ? { mechanic: partyLabel(mechanic) } : {}),
+        ...(doc ? { doc } : {}),
+        ...(newFaults.length ? { faultsOpened: newFaults } : {}),
+        ...(correctedList.length ? { faultsCorrected: correctedList } : {}),
+      }
+      const ok = await recordPmcs(subjectType, subjectId, Object.keys(readings).length ? readings : undefined)
+      if (ok) onClose()
+      else setDocError('Could not save — try again.')
+    } catch (e) {
+      logger.warn('PMCS record failed:', e)
+      setDocError(getErrorMessage(e, 'Could not save — try again.'))
+    } finally {
+      setBusy(false)
     }
-    const ok = await recordPmcs(subjectType, subjectId, Object.keys(readings).length ? readings : undefined)
-    setBusy(false)
-    if (ok) onClose()
   }
 
   const docOf = (e: AuditEvent): PmcsDoc | null => {

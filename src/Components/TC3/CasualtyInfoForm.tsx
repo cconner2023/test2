@@ -6,7 +6,8 @@ import { TextInput, DatePickerInput, PickerInput } from '@/Components/primitives
 import { Chip, ChipBar } from '@/Components/primitives/Chip'
 import { EmptyState } from '@/Components/primitives/EmptyState'
 import type { EvacPriority, BloodType } from '../../Types/TC3Types'
-import { MILITARY_TIME_OPTIONS, militaryToHHMM, hhmmToMilitary } from '../../Types/CalendarTypes'
+import { MILITARY_TIME_OPTIONS } from '../../Types/CalendarTypes'
+import { militaryToHHMM, hhmmToMilitary, toDateKey, toLocalISOString } from '../../Utilities/dates'
 
 const EVAC_OPTIONS: { value: EvacPriority; label: string; color: string }[] = [
   { value: 'Urgent', label: 'U', color: 'bg-themeredred' },
@@ -45,7 +46,7 @@ function hasData(c: typeof EMPTY_CASUALTY) {
 function nowLocalISO() {
   const d = new Date()
   d.setMinutes(d.getMinutes() < 15 ? 0 : d.getMinutes() < 45 ? 30 : 60, 0, 0)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}T${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+  return toLocalISOString(d)
 }
 
 function formatDT(iso: string) {
@@ -310,7 +311,7 @@ export const CasualtyInfoForm = memo(function CasualtyInfoForm() {
                 <PickerInput
                   value={draft.dateTimeOfInjury.slice(11) ? hhmmToMilitary(draft.dateTimeOfInjury.slice(11)) : ''}
                   onChange={(mil) => {
-                    const date = draft.dateTimeOfInjury.slice(0, 10) || new Date().toISOString().slice(0, 10)
+                    const date = draft.dateTimeOfInjury.slice(0, 10) || toDateKey(new Date())
                     updateDraft({ dateTimeOfInjury: `${date}T${militaryToHHMM(mil)}` })
                   }}
                   options={MILITARY_TIME_OPTIONS}
@@ -335,7 +336,7 @@ export const CasualtyInfoForm = memo(function CasualtyInfoForm() {
                 <PickerInput
                   value={draft.dateTimeOfTreatment.slice(11) ? hhmmToMilitary(draft.dateTimeOfTreatment.slice(11)) : ''}
                   onChange={(mil) => {
-                    const date = draft.dateTimeOfTreatment.slice(0, 10) || new Date().toISOString().slice(0, 10)
+                    const date = draft.dateTimeOfTreatment.slice(0, 10) || toDateKey(new Date())
                     updateDraft({ dateTimeOfTreatment: `${date}T${militaryToHHMM(mil)}` })
                   }}
                   options={MILITARY_TIME_OPTIONS}

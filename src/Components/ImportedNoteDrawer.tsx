@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, type ReactNode } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useClusterLabel } from '../Utilities/clusterLabel'
 import { User, ExternalLink, Save, Check } from 'lucide-react'
 import { PaneSurface } from '@/Components/primitives/PaneCard'
@@ -20,8 +20,8 @@ import { useDD689Export } from '../Hooks/useDD689Export'
 import { useSF600Export } from '../Hooks/useSF600Export'
 import { useUserProfile } from '../Hooks/useUserProfile'
 import { useAuthStore } from '../stores/useAuthStore'
-import { profileAvatars } from '../Data/ProfileAvatars'
-import { supabase } from '../lib/supabase'
+import { fetchProfileById } from '../lib/peerLookup'
+import { UserAvatar } from './Settings/UserAvatar'
 import { copyWithHtml } from '../Utilities/clipboardUtils'
 import { getColorClasses } from '../Utilities/ColorUtilities'
 import { useEscBackout } from '../Hooks/useEscBackout'
@@ -53,20 +53,15 @@ export function ImportedNoteDrawer({ preview, onClose, onOpenMedevac, isMobile }
   const { shareNote } = useNoteShare()
   const { exportDD689, exportStatus, dd689Preview, downloadDD689, clearDD689Preview } = useDD689Export()
   const { exportSF600, sf600ExportStatus, sf600Preview, downloadSF600, clearSF600Preview } = useSF600Export()
-  const [authorAvatarSvg, setAuthorAvatarSvg] = useState<ReactNode>(null)
+  const [author, setAuthor] = useState<Awaited<ReturnType<typeof fetchProfileById>>>(null)
 
   const userId = shown?.userId
   useEffect(() => {
-    if (!userId) { setAuthorAvatarSvg(null); return }
-    supabase
-      .from('profiles')
-      .select('avatar_id')
-      .eq('id', userId)
-      .single()
-      .then(({ data }) => {
-        const match = data?.avatar_id ? profileAvatars.find(a => a.id === data.avatar_id) : null
-        setAuthorAvatarSvg(match?.svg ?? null)
-      })
+    setAuthor(null)
+    if (!userId) return
+    let cancelled = false
+    fetchProfileById(userId).then((p) => { if (!cancelled) setAuthor(p) })
+    return () => { cancelled = true }
   }, [userId])
 
   const note = shown?.fullNote ?? ''
@@ -245,8 +240,8 @@ export function ImportedNoteDrawer({ preview, onClose, onOpenMedevac, isMobile }
             </div>
             {shown.authorLabel && (
               <div className="flex items-center gap-1.5 text-[10pt] text-tertiary">
-                {authorAvatarSvg
-                  ? <span className="w-4 h-4 rounded-full overflow-hidden shrink-0">{authorAvatarSvg}</span>
+                {author?.avatarId
+                  ? <UserAvatar avatarId={author.avatarId} avatarBlob={author.avatarBlob} firstName={author.firstName} lastName={author.lastName} className="w-4 h-4" />
                   : <User size={12} className="shrink-0" />}
                 {shown.authorLabel.replace(/^Signed: /, '')}
               </div>

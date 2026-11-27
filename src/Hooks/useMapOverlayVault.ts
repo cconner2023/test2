@@ -10,93 +10,169 @@
  * only — not a signal/* refactor.
  */
 
-import { useCallback, useEffect } from 'react'
+import { useCallback } from 'react'
 import { useAuth } from './useAuth'
 import { supabase } from '../lib/supabase'
 import { useMessagingStore } from '../stores/useMessagingStore'
+import { useAuthStore } from '../stores/useAuthStore'
 import { createLogger } from '../Utilities/Logger'
-import {
-  fetchPeerDevices,
-  sendMessageFanOut,
-  fetchPeerBundleForDevice,
-} from '../lib/signal/signalService'
-import {
-  hasClinicSession,
-  createClinicOutboundSession,
-  encryptClinicMessage,
-  deleteClinicSession,
-  pruneClinicSessions,
-} from '../lib/signal/clinicSession'
 import { serializeContent } from '../lib/signal/messageContent'
 import type { MapOverlayContent, MapOverlayPayload, MapFeatureContent, MapFeaturePayload } from '../lib/signal/messageContent'
-import type { PeerDevice, FanOutMessageInput, PeerBundleRpcResult } from '../lib/signal/transportTypes'
-import type { PublicKeyBundle } from '../lib/signal/types'
 import {
   loadPendingOverlaySends,
   clearPendingOverlaySend,
+  patchPendingOverlaySend,
+  queuePendingOverlaySend,
 } from '../lib/mapOverlayEventStore'
 import { getOverlayTombstones } from '../lib/mapOverlayRouting'
+import { getLocalMapOverlay, saveLocalMapOverlay } from '../lib/offlineDb'
+import { invalidate } from '../stores/useInvalidationStore'
+import { fanOutToClinics, type FanOutOutcome } from '../lib/clinicFanOut'
 
 const logger = createLogger('MapOverlayVault')
 
-// ---- Helpers (same pattern as useCalendarVault) ----
+/**
+ * Seal `serialized` into every target cluster's vault + member devices. One
+ * originId is shared across every cluster batch (so the stored originId
+ * resolves pair-clean in any cluster holding a copy). A failure in one
+ * cluster doesn't abort the rest; succeeds if at least one batch landed.
+ * Foreign clusters seal fine — encryption uses their PUBLIC bundles, no
+ * membership needed (same as the calendar / property cross-cluster fan).
+ */
+async function fanOutDetailed(userId: string | null, targets: string[], serialized: string, what: string, originId?: string): Promise<{ originId: string; outcome: FanOutOutcome } | null> {
+  if (targets.length === 0 || !userId) return null
+  const localDeviceId = useMessagingStore.getState().localDeviceId
+  const clinicDeviceId = useMessagingStore.getState().clinicDeviceId
+  if (!localDeviceId || !clinicDeviceId) return null
+  const sharedOriginId = originId ?? crypto.randomUUID()
+  const outcome = await fanOutToClinics(userId, clinicDeviceId, targets, serialized, sharedOriginId, what)
+  return { originId: sharedOriginId, outcome }
+}
 
-function rpcResultToBundle(rpc: PeerBundleRpcResult): PublicKeyBundle {
-  return {
-    userId: rpc.userId,
-    deviceId: rpc.deviceId,
-    identitySigningKey: rpc.identitySigningKey,
-    identityDhKey: rpc.identityDhKey,
-    signedPreKey: {
-      keyId: rpc.signedPreKeyId,
-      publicKey: rpc.signedPreKey,
-      signature: rpc.signedPreKeySig,
-    },
-    oneTimePreKeys: rpc.oneTimePreKey ? [rpc.oneTimePreKey] : [],
+async function fanOut(userId: string | null, targets: string[], serialized: string, what: string, originId?: string): Promise<string | null> {
+  const r = await fanOutDetailed(userId, targets, serialized, what, originId)
+  return r && r.outcome.landed.length > 0 ? r.originId : null
+}
+
+/**
+ * Target set, in priority order: explicit `fanTo` (edits whose fan set is the
+ * union of old + new targets) → the payload's `target_clinic_ids` → the
+ * owning cluster → the active cluster.
+ */
+function resolveTargets(activeClinicId: string | null, fanTo: string[] | undefined, stamped: string[] | undefined, owner: string | undefined): string[] {
+  if (fanTo && fanTo.length > 0) return Array.from(new Set(fanTo))
+  if (stamped && stamped.length > 0) return Array.from(new Set(stamped))
+  const one = owner ?? activeClinicId
+  return one ? [one] : []
+}
+
+const actionMap = { c: 'create', u: 'update', d: 'delete' } as const
+
+export async function sendOverlayVault(
+  userId: string | null,
+  activeClinicId: string | null,
+  action: 'c' | 'u' | 'd',
+  data: MapOverlayPayload,
+  fanTo?: string[],
+): Promise<string | null> {
+  const content: MapOverlayContent = {
+    type: 'map_overlay',
+    action: actionMap[action],
+    data,
+  }
+  const targets = resolveTargets(activeClinicId, fanTo, data.target_clinic_ids, data.clinic_id)
+  const r = await fanOutDetailed(userId, targets, serializeContent(content), 'map overlay')
+  if (!r || r.outcome.landed.length === 0) return null
+  if (action === 'c') {
+    if (r.outcome.failed.length > 0) {
+      await queuePendingOverlaySend(data, { originId: r.originId, fanTargets: targets, remainingTargets: r.outcome.failed })
+    } else {
+      await clearPendingOverlaySend(data.id)
+    }
+  }
+  return r.originId
+}
+
+export function sendFeatureVault(
+  userId: string | null,
+  activeClinicId: string | null,
+  action: 'c' | 'u' | 'd',
+  data: MapFeaturePayload,
+  fanTo?: string[],
+): Promise<string | null> {
+  const content: MapFeatureContent = {
+    type: 'map_feature',
+    action: actionMap[action],
+    data,
+  }
+  return fanOut(userId, resolveTargets(activeClinicId, fanTo, undefined, data.clinic_id), serializeContent(content), 'map feature')
+}
+
+let overlayDrainInflight: Promise<void> | null = null
+let overlayDrainAgain = false
+
+async function runOverlayDrain(): Promise<void> {
+  const { user, clinicId, supervisingClinicId } = useAuthStore.getState()
+  const activeClinicId = supervisingClinicId ?? clinicId
+  const userId = user?.id ?? null
+  if (!activeClinicId || !userId) return
+  const pendingSends = await loadPendingOverlaySends()
+  for (const item of pendingSends) {
+    if (useAuthStore.getState().user?.id !== userId) return
+    const stableOriginId = item.originId ?? crypto.randomUUID()
+    if (!item.originId) await patchPendingOverlaySend(item, { originId: stableOriginId })
+    const targets = item.fanTargets?.length
+      ? item.fanTargets
+      : resolveTargets(activeClinicId, undefined, item.overlay.target_clinic_ids, item.overlay.clinic_id)
+    const fanNow = item.remainingTargets?.length ? item.remainingTargets : targets
+    const content: MapOverlayContent = { type: 'map_overlay', action: 'create', data: item.overlay }
+    const result = await fanOutDetailed(userId, fanNow, serializeContent(content), 'map overlay', stableOriginId)
+    if (!result || result.outcome.landed.length === 0) continue
+    const { originId, outcome } = result
+    // If the overlay was deleted while this send was in flight, fan-out
+    // a matching 'd' so the vault pair-cleans the freshly sent 'c' on
+    // the next replay pass.
+    if (getOverlayTombstones().has(item.id)) {
+      sendOverlayVault(userId, activeClinicId, 'd', {
+        id: item.id,
+        ...(item.overlay.clinic_id && { clinic_id: item.overlay.clinic_id }),
+        ...(item.overlay.target_clinic_ids && { target_clinic_ids: item.overlay.target_clinic_ids }),
+      }, targets).catch(() => {})
+      await clearPendingOverlaySend(item.id, item.queuedAt)
+      continue
+    }
+    const allLanded = outcome.failed.length === 0
+    const local = await getLocalMapOverlay(item.id)
+    if (local) {
+      await saveLocalMapOverlay({ ...local, originId, _sync_status: allLanded ? 'synced' : 'pending' })
+      invalidate('mapOverlays')
+    }
+    if (allLanded) {
+      await clearPendingOverlaySend(item.id, item.queuedAt)
+    } else {
+      await patchPendingOverlaySend(item, { originId, fanTargets: targets, remainingTargets: outcome.failed })
+    }
   }
 }
 
-async function encryptForAllClinicDevices(
-  clinicId: string,
-  peerDevices: PeerDevice[],
-  serialized: string,
-  senderUuid: string,
-): Promise<FanOutMessageInput[]> {
-  const results: FanOutMessageInput[] = []
-  for (const device of peerDevices) {
-    try {
-      // Force fresh X3DH for vault device — each vault message must be
-      // independently decryptable so hard-deletes don't break session chains.
-      if (device.deviceId === 'vault') {
-        await deleteClinicSession(clinicId, 'vault')
-      }
-      const sessionExists = await hasClinicSession(clinicId, device.deviceId)
-      if (!sessionExists) {
-        const bundleResult = await fetchPeerBundleForDevice(clinicId, device.deviceId)
-        if (!bundleResult.ok) {
-          logger.warn(`No bundle for clinic device ${clinicId}:${device.deviceId}, skipping`)
-          continue
-        }
-        const bundle = rpcResultToBundle(bundleResult.data)
-        const sealedEnvelope = await createClinicOutboundSession(clinicId, device.deviceId, bundle, serialized, senderUuid)
-        results.push({
-          recipientDeviceId: device.deviceId,
-          payload: sealedEnvelope as unknown as Record<string, unknown>,
-          messageType: 'initial',
-        })
-      } else {
-        const sealedEnvelope = await encryptClinicMessage(clinicId, device.deviceId, serialized, senderUuid)
-        results.push({
-          recipientDeviceId: device.deviceId,
-          payload: sealedEnvelope as unknown as Record<string, unknown>,
-          messageType: 'message',
-        })
-      }
-    } catch (e) {
-      logger.warn(`Failed to encrypt for clinic device ${clinicId}:${device.deviceId}:`, e instanceof Error ? e.message : e)
-    }
+export function drainPendingOverlaySends(): Promise<void> {
+  if (overlayDrainInflight) {
+    overlayDrainAgain = true
+    return overlayDrainInflight
   }
-  return results
+  overlayDrainInflight = (async () => {
+    try {
+      do {
+        overlayDrainAgain = false
+        await runOverlayDrain()
+      } while (overlayDrainAgain)
+    } catch (e) {
+      logger.warn('Overlay vault drain failed:', e instanceof Error ? e.message : e)
+    } finally {
+      overlayDrainInflight = null
+    }
+  })()
+  return overlayDrainInflight
 }
 
 // ---- Hook ----
@@ -136,93 +212,17 @@ export function useMapOverlayVault(): UseMapOverlayVaultResult {
   const activeClinicId = supervisingClinicId ?? clinicId
   const userId = user?.id ?? null
 
-  /**
-   * Seal `serialized` into every target cluster's vault + member devices. One
-   * originId is shared across every cluster batch (so the stored originId
-   * resolves pair-clean in any cluster holding a copy). A failure in one
-   * cluster doesn't abort the rest; succeeds if at least one batch landed.
-   * Foreign clusters seal fine — encryption uses their PUBLIC bundles, no
-   * membership needed (same as the calendar / property cross-cluster fan).
-   */
-  const fanOut = useCallback(async (targets: string[], serialized: string, what: string): Promise<string | null> => {
-    if (targets.length === 0 || !userId) return null
-    const localDeviceId = useMessagingStore.getState().localDeviceId
-    const clinicDeviceId = useMessagingStore.getState().clinicDeviceId
-    if (!localDeviceId || !clinicDeviceId) return null
-
-    const originId = crypto.randomUUID()
-    let anySent = false
-    for (const targetClinicId of targets) {
-      try {
-        const devicesResult = await fetchPeerDevices(targetClinicId)
-        if (!devicesResult.ok || devicesResult.data.length === 0) {
-          logger.warn(`No clinic devices found for ${what} fan-out to ${targetClinicId}`)
-          continue
-        }
-
-        // Never chain a ratchet to a dead device — drop sessions to any device
-        // that has left the registry before fanning out (fetch already succeeded
-        // and is non-empty, guarded above).
-        await pruneClinicSessions(targetClinicId, new Set(devicesResult.data.map(d => d.deviceId)))
-
-        // Filter out our own clinic device — we don't send to ourselves.
-        // The vault is a peer device that receives every action, including 'd':
-        // cooperative cleanup during processClinicVaultMessages pairs 'c'/'d'
-        // by overlay_id and hard-deletes the pair from signal_messages.
-        const targetDevices = devicesResult.data.filter(d => d.deviceId !== clinicDeviceId)
-        if (targetDevices.length === 0) continue
-
-        const inputs = await encryptForAllClinicDevices(targetClinicId, targetDevices, serialized, userId)
-        if (inputs.length > 0) {
-          await sendMessageFanOut(userId, clinicDeviceId, targetClinicId, inputs, targetClinicId, originId, true)
-          anySent = true
-        }
-      } catch (e) {
-        logger.warn(`Failed to send ${what} to ${targetClinicId}:`, e instanceof Error ? e.message : e)
-      }
-    }
-    return anySent ? originId : null
-  }, [userId])
-
-  /**
-   * Target set, in priority order: explicit `fanTo` (edits whose fan set is the
-   * union of old + new targets) → the payload's `target_clinic_ids` → the
-   * owning cluster → the active cluster.
-   */
-  const resolveTargets = useCallback((fanTo: string[] | undefined, stamped: string[] | undefined, owner: string | undefined): string[] => {
-    if (fanTo && fanTo.length > 0) return Array.from(new Set(fanTo))
-    if (stamped && stamped.length > 0) return Array.from(new Set(stamped))
-    const one = owner ?? activeClinicId
-    return one ? [one] : []
-  }, [activeClinicId])
-
-  const sendOverlay = useCallback(async (
+  const sendOverlay = useCallback((
     action: 'c' | 'u' | 'd',
     data: MapOverlayPayload,
     fanTo?: string[],
-  ): Promise<string | null> => {
-    const actionMap = { c: 'create', u: 'update', d: 'delete' } as const
-    const content: MapOverlayContent = {
-      type: 'map_overlay',
-      action: actionMap[action],
-      data,
-    }
-    return fanOut(resolveTargets(fanTo, data.target_clinic_ids, data.clinic_id), serializeContent(content), 'map overlay')
-  }, [fanOut, resolveTargets])
+  ): Promise<string | null> => sendOverlayVault(userId, activeClinicId, action, data, fanTo), [userId, activeClinicId])
 
-  const sendFeature = useCallback(async (
+  const sendFeature = useCallback((
     action: 'c' | 'u' | 'd',
     data: MapFeaturePayload,
     fanTo?: string[],
-  ): Promise<string | null> => {
-    const actionMap = { c: 'create', u: 'update', d: 'delete' } as const
-    const content: MapFeatureContent = {
-      type: 'map_feature',
-      action: actionMap[action],
-      data,
-    }
-    return fanOut(resolveTargets(fanTo, undefined, data.clinic_id), serializeContent(content), 'map feature')
-  }, [fanOut, resolveTargets])
+  ): Promise<string | null> => sendFeatureVault(userId, activeClinicId, action, data, fanTo), [userId, activeClinicId])
 
   const deleteOverlayMessages = useCallback(async (originIds: string[], clinicId: string): Promise<void> => {
     if (originIds.length === 0 || !clinicId) return
@@ -235,34 +235,6 @@ export function useMapOverlayVault(): UseMapOverlayVaultResult {
       logger.warn('Failed to delete vault overlay messages:', e instanceof Error ? e.message : e)
     }
   }, [])
-
-  // Drain pending vault sends on mount and whenever connectivity returns.
-  // Overlays queued offline are re-sent here.
-  useEffect(() => {
-    if (!activeClinicId || !userId) return
-    const drain = async () => {
-      const pendingSends = await loadPendingOverlaySends()
-      for (const item of pendingSends) {
-        const originId = await sendOverlay('c', item.overlay)
-        if (originId) {
-          // If the overlay was deleted while this send was in flight, fan-out
-          // a matching 'd' so the vault pair-cleans the freshly sent 'c' on
-          // the next replay pass.
-          if (getOverlayTombstones().has(item.id)) {
-            sendOverlay('d', {
-              id: item.id,
-              ...(item.overlay.clinic_id && { clinic_id: item.overlay.clinic_id }),
-              ...(item.overlay.target_clinic_ids && { target_clinic_ids: item.overlay.target_clinic_ids }),
-            }).catch(() => {})
-          }
-          await clearPendingOverlaySend(item.id)
-        }
-      }
-    }
-    drain()
-    window.addEventListener('online', drain)
-    return () => window.removeEventListener('online', drain)
-  }, [sendOverlay, activeClinicId, userId])
 
   return {
     ready: !!activeClinicId && !!userId,

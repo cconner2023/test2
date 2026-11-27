@@ -434,8 +434,7 @@ export function MemberEditPopover({
   // be authorized over the soldier's home cluster from any viewing context.
   // Gate the action on the global supervisor flag and let the server enforce
   // actual home-clinic authority via supervisor_set_home_clinic.
-  const isSupervisorRole = useAuthStore((s) => s.isSupervisorRole)
-  const canPromoteHome = isSupervisorRole && !!homeClinicId
+  const canPromoteHome = false
   const confirmPromote = useCallback(async () => {
     if (!memberId || !promoteTarget || promoting) return
     setPromoting(true)

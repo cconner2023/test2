@@ -5,6 +5,7 @@
  */
 import { toWinAnsi, wrapText } from './pdfText'
 import { historyLine, type NoteHistory } from './noteHistory'
+import { MONTHS_UPPER, toDateKey } from './dates'
 export { downloadPdfBytes } from './downloadUtils'
 
 /**
@@ -56,7 +57,7 @@ export interface SF600Stamp {
 export function nowStamp(d = new Date()): SF600Stamp {
   const p = (n: number) => String(n).padStart(2, '0')
   return {
-    date: `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`,
+    date: toDateKey(d),
     time: `${p(d.getHours())}${p(d.getMinutes())}`,
   }
 }
@@ -65,10 +66,9 @@ export function nowStamp(d = new Date()): SF600Stamp {
 export function formatDob(iso: string): string {
   if (!iso) return ''
   const [y, m, d] = iso.split('-')
-  const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
   const mi = Number(m) - 1
   if (!y || !d || mi < 0 || mi > 11) return iso
-  return `${d} ${months[mi]} ${y}`
+  return `${d} ${MONTHS_UPPER[mi]} ${y}`
 }
 
 // ── Layout constants (PDF points, origin = bottom-left, 72 pts/inch) ──
@@ -159,7 +159,7 @@ export async function generateSF600(params: SF600Params): Promise<Uint8Array> {
   const isBoldLine = (line: string) => BOLD_HEADERS.has(line.trim())
 
   // Strip existing "Signed:" line — SF600 renders its own signature row
-  const dateStamp = new Date().toISOString().slice(0, 10).replace(/-/g, '')
+  const dateStamp = toDateKey(new Date()).replace(/-/g, '')
   const clean = (s: string) => toWinAnsi(s, font)
   let noteText = params.noteText
   const h = params.history

@@ -280,7 +280,7 @@ export function CalendarPanel({ onBack, scrollNonce, onOpenControls }: CalendarP
   const handleCreateOverlayForEvent = useCallback(async (rawName: string): Promise<string | null> => {
     if (!activeClinicId || !user) return null
     const overlayId = crypto.randomUUID()
-    const today = new Date().toISOString().slice(0, 10)
+    const today = toDateKey(new Date())
     const name = rawName.trim() || `Field map · ${today}`
     const saved = await writeOverlay({
       overlayId,
@@ -1056,12 +1056,10 @@ export function CalendarPanel({ onBack, scrollNonce, onOpenControls }: CalendarP
     const newStart = new Date(originalStart)
     newStart.setFullYear(y, m - 1, d)
     const newEnd = new Date(newStart.getTime() + durationMs)
-    const pad = (n: number) => String(n).padStart(2, '0')
-    const toISO = (dt: Date) => `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}T${pad(dt.getHours())}:${pad(dt.getMinutes())}`
     const movedEvent: CalendarEvent = {
       ...event,
-      start_time: toISO(newStart),
-      end_time: toISO(newEnd),
+      start_time: toLocalISOString(newStart),
+      end_time: toLocalISOString(newEnd),
       updated_at: new Date().toISOString(),
     }
     useCalendarStore.getState().updateEvent(eventId, movedEvent)

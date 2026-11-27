@@ -22,6 +22,7 @@ import { useNavigationStore } from '../../stores/useNavigationStore'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { resolveSwipeActions, type SwipeBinding, type SwipeAction } from '../../Utilities/swipeActions'
 import { copyImage } from '../../Utilities/clipboardUtils'
+import { downloadBlob } from '../../Utilities/downloadUtils'
 export type { SwipeAction }
 
 /** Reveal-icon + tint for each non-disabled swipe binding (mobile swipe affordance). */
@@ -81,6 +82,7 @@ function formatTime(iso: string): string {
  */
 function useDecryptedAttachment(path: string | undefined, key: string | undefined, store: 'r2' | undefined) {
   const [url, setUrl] = useState<string | null>(null)
+  const [blob, setBlob] = useState<Blob | null>(null)
   const [loading, setLoading] = useState(false)
   const [gone, setGone] = useState(false)
 
@@ -95,6 +97,7 @@ function useDecryptedAttachment(path: string | undefined, key: string | undefine
       if (revoked) return
       if (result.ok) {
         const objectUrl = URL.createObjectURL(result.data)
+        setBlob(result.data)
         setUrl(objectUrl)
       } else if (result.error === 'not_found') {
         setGone(true)
@@ -106,10 +109,11 @@ function useDecryptedAttachment(path: string | undefined, key: string | undefine
     return () => {
       revoked = true
       setUrl(prev => { if (prev) URL.revokeObjectURL(prev); return null })
+      setBlob(null)
     }
   }, [path, key, store])
 
-  return { url, loading, gone }
+  return { url, blob, loading, gone }
 }
 
 /** Format seconds to m:ss display. */
@@ -347,7 +351,7 @@ export function MessageBubble({
   const isVoice = !!voiceContent
   const fileContent = message.content?.type === 'file' ? message.content : null
 
-  const { url: fullImageUrl, loading: imageLoading, gone: imageGone } = useDecryptedAttachment(
+  const { url: fullImageUrl, blob: fullImageBlob, loading: imageLoading, gone: imageGone } = useDecryptedAttachment(
     imageContent?.path,
     imageContent?.key,
     imageContent?.store,
@@ -944,30 +948,20 @@ export function MessageBubble({
             <ActionButton
               icon={Copy}
               label="Copy image"
-              onClick={async () => {
-                try {
-                  const blob = await (await fetch(fullImageUrl)).blob()
-                  const type = blob.type && blob.type.startsWith('image/') ? blob.type : 'image/png'
-                  await copyImage(type === blob.type ? blob : new Blob([blob], { type }))
-                } catch {}
+              onClick={() => {
+                if (!fullImageBlob) return
+                const blob = fullImageBlob
+                const type = blob.type && blob.type.startsWith('image/') ? blob.type : 'image/png'
+                void copyImage(type === blob.type ? blob : new Blob([blob], { type }))
               }}
             />
             <ActionButton
               icon={Download}
               label="Save image"
-              onClick={async () => {
-                try {
-                  const blob = await (await fetch(fullImageUrl)).blob()
-                  const ext = (blob.type.split('/')[1] || 'png').split('+')[0]
-                  const url = URL.createObjectURL(blob)
-                  const a = document.createElement('a')
-                  a.href = url
-                  a.download = `image-${Date.now()}.${ext}`
-                  document.body.appendChild(a)
-                  a.click()
-                  a.remove()
-                  setTimeout(() => URL.revokeObjectURL(url), 1000)
-                } catch {}
+              onClick={() => {
+                if (!fullImageBlob) return
+                const ext = (fullImageBlob.type.split('/')[1] || 'png').split('+')[0]
+                downloadBlob(fullImageBlob, `image-${Date.now()}.${ext}`)
               }}
             />
           </div>

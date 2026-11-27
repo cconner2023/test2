@@ -37,14 +37,14 @@ export const hooks = {
   useMessageNotifications: { path: 'Hooks/useMessageNotifications.ts', stores: [], services: ['soundService'], purpose: 'Single-slot notification for incoming messages' },
   useChatInteractions:    { path: 'Hooks/useChatInteractions.ts',    stores: [], services: [], purpose: 'Shared chat state (context menu, edit, forward, reply, delete)' },
   usePeerAvailability:    { path: 'Hooks/usePeerAvailability.ts',    stores: [], services: ['supabase'], purpose: 'Check peer messageable status (devices + keys)' },
-  usePushNotifications:   { path: 'Hooks/usePushNotifications.ts',   stores: ['useNavigationStore'], services: ['pushNotificationService'], purpose: 'FCM push subscription + foreground toast' },
+  usePushNotifications:   { path: 'Hooks/usePushNotifications.ts',   stores: ['usePushStore'], services: ['pushNotificationService'], purpose: 'FCM push subscription + foreground toast' },
 
   // ─── Calendar ──────────────────────────────────────────────────
   useCalendarSync:        { path: 'Hooks/useCalendarSync.ts',        stores: ['useCalendarStore'], services: ['calendarEventStore', 'calendarRouting'], purpose: 'Hydrate calendar events from IDB with tombstone cleanup' },
-  useCalendarVault:       { path: 'Hooks/useCalendarVault.ts',       stores: ['useAuthStore', 'useMessagingStore'], services: ['signal/signalService', 'signal/clinicSession'], purpose: 'Send/delete calendar events via Signal fan-out' },
+  useCalendarVault:       { path: 'Hooks/useCalendarVault.ts',       stores: ['useAuthStore', 'useMessagingStore'], services: ['clinicFanOut'], purpose: 'Send/delete calendar events via Signal fan-out; module-level offline drain' },
 
   // ─── Training ──────────────────────────────────────────────────
-  useTrainingCompletions: { path: 'Hooks/useTrainingCompletions.ts', stores: ['useAuthStore'], services: ['trainingService', 'offlineDb', 'syncService'], purpose: 'Training CRUD, offline-first IDB, Supabase sync' },
+  useTrainingCompletions: { path: 'Hooks/useTrainingCompletions.ts', stores: ['useTrainingStore'], services: ['trainingService', 'offlineDb', 'syncService'], purpose: 'Training CRUD, offline-first IDB, Supabase sync' },
   useRealtimeTrainingCompletions: { path: 'Hooks/useRealtimeTrainingCompletions.ts', stores: [], services: ['trainingService'], purpose: 'Realtime subscription for training INSERT/UPDATE/DELETE' },
 
   // ─── Certifications ────────────────────────────────────────────

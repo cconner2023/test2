@@ -110,8 +110,8 @@ export function MenuListRow({ item, onSelect }: { item: ContextMenuItem; onSelec
   }
   return (
     <button
-      disabled={item.disabled}
-      onClick={() => onSelect(item)}
+      disabled={isDisabled}
+      onClick={() => { if (!isDisabled) onSelect(item) }}
       aria-label={item.label}
       className={rowCx}
     >
@@ -473,9 +473,6 @@ export function AnchoredMenu({ isOpen, anchorRect: anchorRectProp, anchorRef, ro
       {/* Lifted row clone (peek only) */}
       {hasClone && (
         <div
-          // Live visual rect of the lifted clone — lets a surface opened from
-          // this menu grow out of the lifted row (TrackingCardOverlay).
-          data-lifted-clone=""
           className={
             bare
               ? 'absolute pointer-events-none'

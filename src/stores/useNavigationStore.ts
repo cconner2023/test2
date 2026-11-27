@@ -116,7 +116,7 @@ const CLOSE_ALL_DRAWERS = {
     showLoRaDrawer: false,
     showTC3Drawer: false,
     showTrackingBoardDrawer: false,
-    trackingDrawerEntry: null as { id: string; edit: boolean } | null,
+    trackingDrawerEntry: null as { id: string } | null,
     trackingDrawerCheckIn: false,
     showMapOverlayDrawer: false,
     mapOverlayDrawerOverlayId: null as string | null,
@@ -174,7 +174,7 @@ interface NavigationState {
     showTC3Drawer: boolean
     showTrackingBoardDrawer: boolean
     /** BRN to open once the Tracking Board drawer is up (edit = straight into Edit). */
-    trackingDrawerEntry: { id: string; edit: boolean } | null
+    trackingDrawerEntry: { id: string } | null
     /** Open the Tracking Board drawer straight into the check-in form. */
     trackingDrawerCheckIn: boolean
     showMapOverlayDrawer: boolean
@@ -239,7 +239,7 @@ interface NavigationActions {
     setShowLoRaDrawer: (show: boolean) => void
     setShowTC3Drawer: (show: boolean) => void
     setShowTrackingBoardDrawer: (show: boolean) => void
-    openTrackingEntry: (entryId: string, edit?: boolean) => void
+    openTrackingEntry: (entryId: string) => void
     clearTrackingDrawerEntry: () => void
     openTrackingCheckIn: () => void
     clearTrackingDrawerCheckIn: () => void
@@ -591,11 +591,11 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
         ...(show ? {} : { trackingDrawerEntry: null, trackingDrawerCheckIn: false }),
     })),
 
-    openTrackingEntry: (entryId, edit = false) => set((s) => ({
+    openTrackingEntry: (entryId) => set((s) => ({
         ...CLOSE_ALL_DRAWERS,
         ...PRESERVED_FIELDS(s),
         showTrackingBoardDrawer: true,
-        trackingDrawerEntry: { id: entryId, edit },
+        trackingDrawerEntry: { id: entryId },
     })),
 
     clearTrackingDrawerEntry: () => set({ trackingDrawerEntry: null }),

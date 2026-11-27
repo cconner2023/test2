@@ -24,10 +24,13 @@ interface MapOverlayTombstone {
   deletedAt: number
 }
 
-interface PendingVaultSend {
+export interface PendingVaultSend {
   id: string
   overlay: MapOverlayPayload
   queuedAt: number
+  originId?: string
+  fanTargets?: string[]
+  remainingTargets?: string[]
 }
 
 interface MapOverlayEventsDB extends DBSchema {
@@ -105,10 +108,13 @@ export async function clearExpiredOverlayTombstones(maxAgeDays = 180): Promise<v
 // ---- Pending Vault Send Queue ----
 
 /** Queue an overlay for vault fan-out retry when connectivity returns. */
-export async function queuePendingOverlaySend(overlay: MapOverlayPayload): Promise<void> {
+export async function queuePendingOverlaySend(
+  overlay: MapOverlayPayload,
+  extras?: Pick<PendingVaultSend, 'originId' | 'fanTargets' | 'remainingTargets'>,
+): Promise<void> {
   try {
     const db = await getDb()
-    await db.put('pendingVaultSends', { id: overlay.id, overlay, queuedAt: Date.now() })
+    await db.put('pendingVaultSends', { id: overlay.id, overlay, queuedAt: Date.now(), ...extras })
   } catch (e) {
     logger.warn('Failed to queue pending overlay send:', e)
   }
@@ -125,11 +131,33 @@ export async function loadPendingOverlaySends(): Promise<PendingVaultSend[]> {
   }
 }
 
-/** Remove a successfully sent overlay from the retry queue. */
-export async function clearPendingOverlaySend(id: string): Promise<void> {
+export async function patchPendingOverlaySend(
+  item: PendingVaultSend,
+  patch: Partial<Pick<PendingVaultSend, 'originId' | 'fanTargets' | 'remainingTargets'>>,
+): Promise<void> {
   try {
     const db = await getDb()
-    await db.delete('pendingVaultSends', id)
+    const tx = db.transaction('pendingVaultSends', 'readwrite')
+    const current = await tx.store.get(item.id)
+    if (current && current.queuedAt === item.queuedAt) await tx.store.put({ ...current, ...patch })
+    await tx.done
+  } catch (e) {
+    logger.warn('Failed to stamp pending overlay send origin:', e)
+  }
+}
+
+/** Remove a successfully sent overlay from the retry queue. */
+export async function clearPendingOverlaySend(id: string, queuedAt?: number): Promise<void> {
+  try {
+    const db = await getDb()
+    if (queuedAt === undefined) {
+      await db.delete('pendingVaultSends', id)
+      return
+    }
+    const tx = db.transaction('pendingVaultSends', 'readwrite')
+    const current = await tx.store.get(id)
+    if (current && current.queuedAt === queuedAt) await tx.store.delete(id)
+    await tx.done
   } catch (e) {
     logger.warn('Failed to clear pending overlay send:', e)
   }

@@ -57,7 +57,7 @@ interface TintedCardProps {
 
 /** Card-menu ellipsis. Swallows touch/click so the host row's tap, swipe and
  *  long-press never fire from it. */
-function MoreButton({ onMore, compact }: { onMore: (rect: DOMRect) => void; compact: boolean }) {
+export function MoreButton({ onMore, compact }: { onMore: (rect: DOMRect) => void; compact: boolean }) {
   return (
     <button
       type="button"

@@ -84,7 +84,7 @@ export function UserGuideDrawer({ isVisible, onClose }: UserGuideDrawerProps) {
                 desktopPosition="left"
                 isVisible={isVisible}
                 onClose={handleClose}
-                mobileFullScreen
+                mobilePanel
                 fullHeight="95dvh"
                 header={headerConfig}
                 glassHeader={isMobile}

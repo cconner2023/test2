@@ -23,7 +23,7 @@ import { useLongPress } from '../../Hooks/useLongPress'
 import { getDisplayName } from '../../Utilities/nameUtils'
 import { lastActivityMessage, activityPreview } from '../../Utilities/conversationActivity'
 import { UserAvatar } from '../Settings/UserAvatar'
-import { useProfileAvatar } from '../../Hooks/useProfileAvatar'
+import { useAvatar } from '../../Utilities/AvatarContext'
 import type { SavedNote } from '../../lib/savedNotesDb'
 import type { ClinicMedic } from '../../Types/SupervisorTestTypes'
 import { displayGroupName, type GroupInfo } from '../../lib/signal/groupTypes'
@@ -177,7 +177,7 @@ function MessagesWidget({ action }: { action: WidgetActionDescriptor | null }) {
   const openMessagesConversation = useNavigationStore(s => s.openMessagesConversation)
   const { medics } = useClinicMedics()
   const profile = useAuthStore(s => s.profile)
-  const { currentAvatar } = useProfileAvatar(localUserId ?? undefined)
+  const { currentAvatar } = useAvatar()
   const [liftedMenu, setLiftedMenu] = useState<{ rect: DOMRect; row: ReactNode; items: ContextMenuItem[] } | null>(null)
   const closeMenu = useCallback(() => setLiftedMenu(null), [])
   const [ellipsisMenu, setEllipsisMenu] = useState<{ rect: DOMRect; items: ContextMenuItem[] } | null>(null)

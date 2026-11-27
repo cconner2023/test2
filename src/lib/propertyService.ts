@@ -39,7 +39,7 @@ import {
 } from './offlineDb'
 import { processSyncQueue, isOnline } from './syncService'
 import { computeReservedBandTile } from './propertyGeometry'
-import { resolvePropertyTargetClinics, sendPropertyEvent, sendPropertyEventsBatch, deletePropertyVaultMessages, type PropertyBatchEvent } from './propertyVault'
+import { resolvePropertyTargetClinics, fanPropertyEvent, sendPropertyEventsBatch, deletePropertyVaultMessages, type PropertyBatchEvent } from './propertyVault'
 import { queuePendingPropertySend, addItemTombstone, addZoneTombstone } from './propertyEventStore'
 import { getItemTombstones, getZoneTombstones } from './propertyEventRouting'
 import { useAuthStore } from '../stores/useAuthStore'
@@ -154,15 +154,22 @@ async function fanProperty(
   authoringClinicId: string | null,
   fanToClinics?: string[],
 ): Promise<void> {
+  let remainingTargets: string[] | undefined
+  let queuedPayload = payload
   try {
-    const sent = await sendPropertyEvent(userId, action, entity, payload, fanToClinics)
-    if (sent) return
+    const r = await fanPropertyEvent(userId, action, entity, payload, fanToClinics)
+    if (r && r.outcome.landed.length > 0) {
+      if (r.outcome.failed.length === 0) return
+      remainingTargets = r.outcome.failed
+      queuedPayload = { ...payload, originId: r.originId }
+    }
   } catch (e) {
     logger.warn('property fan-out failed, queuing for retry:', e)
   }
   await queuePendingPropertySend({
-    key: `${entity}:${payload.id}`, entity, action, payload,
+    key: `${entity}:${payload.id}`, entity, action, payload: queuedPayload,
     holderIds: holderIds.filter(Boolean), authoringClinicId,
+    ...(remainingTargets && { remainingTargets }),
   }).catch(() => {})
 }
 
@@ -383,12 +390,15 @@ export async function createItemsBatch(
   }
 
   // ONE coalesced fan-out for the whole import; queue whatever didn't reach a device.
-  const sent = await sendPropertyEventsBatch(userId, events)
+  const failedByOrigin = new Map<string, string[]>()
+  const sent = await sendPropertyEventsBatch(userId, events, failedByOrigin)
   for (const fb of fallbacks) {
-    if (sent.has(fb.originId)) continue
+    const failed = failedByOrigin.get(fb.originId)
+    if (sent.has(fb.originId) && !failed?.length) continue
     await queuePendingPropertySend({
       key: `${fb.entity}:${fb.payload.id}`, entity: fb.entity, action: fb.action, payload: fb.payload,
       holderIds: fb.holderIds, authoringClinicId: fb.authoringClinicId,
+      ...(sent.has(fb.originId) && failed && failed.length > 0 ? { remainingTargets: failed } : {}),
     }).catch(() => {})
   }
 

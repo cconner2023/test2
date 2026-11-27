@@ -272,6 +272,42 @@ export const stores = {
     note: "Self-hydrates on sign-in and on invalidate('clinics'); clears on sign-out",
   },
 
+  useTrainingStore: {
+    path: 'stores/useTrainingStore.ts',
+    purpose: 'Shared training completions fold, viewed tasks, sync status; one lifecycle for every useTrainingCompletions mount',
+    fields: {
+      userId: 'string | null',
+      completions: 'TrainingCompletionUI[]',
+      viewedTasks: 'Set<string>',
+      isSyncing: 'boolean',
+      pendingCount: 'number',
+      algorithmRunCounts: 'Map<string, number>',
+      holders: 'string[]',
+    },
+    actions: ['refresh', 'markTaskCompleted', 'submitTestEvaluation', 'deleteCompletion', 'assignTask', 'markTaskViewed'],
+    middleware: [],
+    crossStoreRefs: { reads: ['useAuthStore', 'useCalendarStore'], writes: [] },
+    services: ['trainingService', 'auditService', 'syncService'],
+    note: 'acquireTraining ref-counts mounts; first holder owns the realtime channel. resetTrainingStore on user change',
+  },
+
+  usePushStore: {
+    path: 'stores/usePushStore.ts',
+    purpose: 'FCM subscription state + foreground push toast; initPushRouting installs the SW message listener once',
+    fields: {
+      isSupported: 'boolean',
+      isSubscribed: 'boolean',
+      subscriptionInfo: 'SubscriptionInfo | null',
+      loading: 'boolean',
+      error: 'string | null',
+      foregroundPush: 'ForegroundPush | null',
+    },
+    actions: ['refreshSubscriptionState', 'subscribe', 'unsubscribe', 'showForegroundPush', 'dismissForegroundPush'],
+    middleware: [],
+    crossStoreRefs: { reads: [], writes: ['useNavigationStore', 'useInvalidationStore'] },
+    services: ['pushNotificationService'],
+  },
+
   useNavPreferencesStore: {
     path: 'stores/useNavPreferencesStore.ts',
     purpose: 'Custom nav order, starred/hidden actions, pinned KB items (persisted)',

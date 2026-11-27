@@ -216,7 +216,7 @@ export const ColumnA = memo(function ColumnA({ onNavigate, onEdgeDrag, onEdgeDra
       {hasMobileSearch && (
         <div
           ref={wrapperRef}
-          className={`overflow-hidden ${isMobile ? 'absolute left-0 right-0 z-10 bg-themewhite' : 'shrink-0'}`}
+          className={`overflow-hidden ${isMobile ? 'absolute left-0 right-0 z-10' : 'shrink-0'}`}
           style={{
             height: barHeight,
             opacity: 1,

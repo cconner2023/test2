@@ -3,6 +3,7 @@ import { FileText, FileImage, FileVideo, FileAudio, FileArchive, File as FileIco
 import type { LucideIcon } from 'lucide-react'
 import type { FileContent } from '../../lib/signal/messageContent'
 import { downloadDecryptedAttachment } from '../../lib/signal/attachmentService'
+import { downloadBlob } from '../../Utilities/downloadUtils'
 
 function iconFor(mime: string): LucideIcon {
   if (mime.startsWith('image/')) return FileImage
@@ -63,12 +64,9 @@ export function FileAttachmentBubble({ content, isOwn }: { content: FileContent;
   }, [file])
 
   const save = useCallback(() => {
-    if (!url) return
-    const a = document.createElement('a')
-    a.href = url
-    a.download = content.name
-    a.click()
-  }, [url, content.name])
+    if (!file) return
+    downloadBlob(file, content.name)
+  }, [file, content.name])
 
   const open = useCallback(() => {
     if (url) window.open(url, '_blank', 'noopener')

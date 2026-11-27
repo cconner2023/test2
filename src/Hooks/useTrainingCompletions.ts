@@ -26,219 +26,19 @@
  * IndexedDB + Supabase system.
  */
 
-import { useState, useCallback, useEffect, useRef } from 'react';
-import {
-  createReadCompletion,
-  createTestCompletion,
-  createAssignment,
-  completeAssignment,
-  deleteCompletion as deleteCompletionApi,
-  enrichCalendarLinks,
-  type TrainingCompletionUI,
-} from '../lib/trainingService';
-import { loadAuditBySubject } from '../lib/auditService';
-import { foldTrainingState, liveTrainingEvents } from '../lib/trainingFold';
-import { countAlgorithmRuns } from '../Utilities/algorithmStp';
-import {
-  isOnline as checkOnline,
-  setupConnectivityListeners,
-  fullSync,
-} from '../lib/syncService';
-import { supabase } from '../lib/supabase';
-import { useAuthStore } from '../stores/useAuthStore';
+import { useCallback, useEffect, useId, useRef } from 'react';
+import { useShallow } from 'zustand/react/shallow';
+import type { TrainingCompletionUI } from '../lib/trainingService';
+import { useTrainingStore, acquireTraining } from '../stores/useTrainingStore';
 import { useRealtimeTrainingCompletions } from './useRealtimeTrainingCompletions';
 import { usePageVisibility } from './usePageVisibility';
 import { useCalendarWrite } from './useCalendarWrite';
-import { useCalendarStore } from '../stores/useCalendarStore';
 import { getTaskData } from '../Data/TrainingData';
-import { createLogger } from '../Utilities/Logger';
-import { succeed, fail, type ServiceResult } from '../lib/result';
-import type { CompletionResult } from '../Types/database.types';
-import type { StepResult } from '../Types/SupervisorTestTypes';
 import type { subjectAreaArray } from '../Types/CatTypes';
 
 // Re-export TrainingCompletionUI so existing imports
 // from './useTrainingCompletions' work without reaching into trainingService.
 export type { TrainingCompletionUI } from '../lib/trainingService';
-
-const logger = createLogger('TrainingCompletions');
-
-// ── localStorage Keys for Migration ──────────────────────────
-
-const TRAINING_PROGRESS_KEY = 'adtmc_training_progress';
-const SUPERVISOR_TESTS_KEY = 'adtmc_supervisor_tests';
-
-// ── Migration Helpers ────────────────────────────────────────
-
-interface OldTaskProgress {
-  lastViewedAt: string;
-  lastStepIndex: number;
-  completed: boolean;
-}
-
-interface OldTrainingProgress {
-  viewedTasks: Record<string, OldTaskProgress>;
-}
-
-interface OldSupervisorTestRecord {
-  id: string;
-  supervisorId: string;
-  medicId: string;
-  taskNumber: string;
-  stepResults: StepResult[];
-  overallResult: 'PASS' | 'FAIL';
-  testDate: string;
-  notes?: string;
-}
-
-interface OldSupervisorTestsData {
-  tests: OldSupervisorTestRecord[];
-}
-
-/**
- * Migrate training progress from localStorage to the new IndexedDB-backed system.
- *
- * For each entry in `viewedTasks`:
- *   - If `completed: true`, creates a read completion via createReadCompletion().
- *   - If `completed: false` (viewed but not completed), adds to the local
- *     viewedTasks set (lightweight, not synced).
- *
- * After migration, the localStorage key is removed.
- */
-async function migrateTrainingProgress(
-  userId: string
-): Promise<{ viewedTaskIds: Set<string>; migrated: number }> {
-  const viewedTaskIds = new Set<string>();
-  let migrated = 0;
-
-  try {
-    const raw = localStorage.getItem(TRAINING_PROGRESS_KEY);
-    if (!raw) return { viewedTaskIds, migrated };
-
-    const parsed: OldTrainingProgress = JSON.parse(raw);
-    if (typeof parsed?.viewedTasks !== 'object') {
-      localStorage.removeItem(TRAINING_PROGRESS_KEY);
-      return { viewedTaskIds, migrated };
-    }
-
-    for (const [taskId, progress] of Object.entries(parsed.viewedTasks)) {
-      if (progress.completed) {
-        // Create a read completion for completed tasks. A refused emit skips the
-        // entry rather than aborting the loop — the remaining tasks are still
-        // migratable, and the localStorage key is only dropped once, below.
-        const res = await createReadCompletion(taskId, userId);
-        if (res.success) migrated++;
-      } else {
-        // Just viewed, not completed -- track locally only
-        viewedTaskIds.add(taskId);
-      }
-    }
-
-    localStorage.removeItem(TRAINING_PROGRESS_KEY);
-    logger.info(
-      `Migrated ${migrated} completed tasks from localStorage, ` +
-        `${viewedTaskIds.size} viewed-only tasks tracked locally`
-    );
-  } catch (err) {
-    logger.warn('Training progress migration failed:', err);
-  }
-
-  return { viewedTaskIds, migrated };
-}
-
-/**
- * Migrate supervisor tests from localStorage to the new IndexedDB-backed system.
- *
- * For each test record, creates a test completion via createTestCompletion().
- * After migration, the localStorage key is removed.
- */
-async function migrateSupervisorTests(userId: string): Promise<number> {
-  let migrated = 0;
-
-  try {
-    const raw = localStorage.getItem(SUPERVISOR_TESTS_KEY);
-    if (!raw) return 0;
-
-    const parsed: OldSupervisorTestsData = JSON.parse(raw);
-    if (!Array.isArray(parsed?.tests) || parsed.tests.length === 0) {
-      localStorage.removeItem(SUPERVISOR_TESTS_KEY);
-      return 0;
-    }
-
-    for (const test of parsed.tests) {
-      const res = await createTestCompletion({
-        medicUserId: test.medicId,
-        trainingItemId: test.taskNumber,
-        result: test.overallResult === 'PASS' ? 'GO' : 'NO_GO',
-        stepResults: test.stepResults,
-        supervisorNotes: test.notes,
-        supervisorId: test.supervisorId || userId,
-      });
-      if (res.success) migrated++;
-    }
-
-    localStorage.removeItem(SUPERVISOR_TESTS_KEY);
-    logger.info(`Migrated ${migrated} supervisor tests from localStorage`);
-  } catch (err) {
-    logger.warn('Supervisor tests migration failed:', err);
-  }
-
-  return migrated;
-}
-
-// ── Shared initial-sync coordinator ──────────────────────────
-// ~4 components mount useTrainingCompletions (TrainingPanel ×2, TrainingDrawer,
-// SupervisorDrawer); each init() previously fired its own fullSync() network
-// pull+push on mount → a training_completions GET fan-out (a top PostgREST
-// egress source). fullSync is idempotent (last-write-wins reconcile + queue
-// push), so the initial pull is shared here: concurrent mounts await ONE
-// in-flight fullSync, and remounts within the TTL skip the network entirely and
-// rely on the local IDB read + realtime + the connectivity-listener resync path.
-let trainingInitSyncInflight: Promise<void> | null = null
-let trainingInitSyncUser: string | null = null
-let trainingInitSyncAt = 0
-const TRAINING_INIT_SYNC_TTL_MS = 30_000
-
-async function ensureInitialTrainingSync(userId: string): Promise<void> {
-  if (trainingInitSyncInflight) return trainingInitSyncInflight
-  if (trainingInitSyncUser === userId && Date.now() - trainingInitSyncAt < TRAINING_INIT_SYNC_TTL_MS) {
-    return // synced for this user very recently — skip the redundant network round-trip
-  }
-  trainingInitSyncInflight = (async () => {
-    try {
-      await fullSync(userId)
-    } finally {
-      trainingInitSyncUser = userId
-      trainingInitSyncAt = Date.now()
-      trainingInitSyncInflight = null
-    }
-  })()
-  return trainingInitSyncInflight
-}
-
-// ── Load the current-state completions from the audit_log event fold ──────────
-// Offline-first: local IDB events + server (read_audit), deduped, training-only,
-// folded into TrainingCompletionUI. training_completions is still dual-written and
-// serves as a fallback (below) so a fold-fetch failure never blanks training.
-async function loadFoldedCompletions(
-  userId: string,
-): Promise<{ completions: TrainingCompletionUI[]; runCounts: Map<string, number> }> {
-  // Active clinic, matching what emitTrainingEvent now stamps — a supervisor
-  // toggled into a loaned cluster reads back the events they just wrote there.
-  const { clinicId, supervisingClinicId } = useAuthStore.getState();
-  const activeClinicId = supervisingClinicId ?? clinicId;
-  const events = await loadAuditBySubject(userId, activeClinicId ?? '');
-  const training = events.filter((e) => e.domain === 'training');
-  // Run counts come off the SAME deduped raw set, BEFORE the fold collapses
-  // repeat reads. No second fetch, and it is the only way the self surface can
-  // see occurrence totals rather than a boolean 'has read this'. Voided events
-  // come out first — the fold takes the raw set because it reads the tombstones,
-  // a count must not (see liveTrainingEvents).
-  return {
-    completions: await enrichCalendarLinks(foldTrainingState(training)),
-    runCounts: countAlgorithmRuns(liveTrainingEvents(training), userId),
-  };
-}
 
 // ── Hook ─────────────────────────────────────────────────────
 
@@ -247,19 +47,38 @@ async function loadFoldedCompletions(
  * Provides read/test completion queries, progress tracking, and realtime cross-device updates.
  */
 export function useTrainingCompletions() {
-  const [completions, setCompletions] = useState<TrainingCompletionUI[]>([]);
-  const [viewedTasks, setViewedTasks] = useState<Set<string>>(new Set());
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [pendingCount, setPendingCount] = useState(0);
-  const [algorithmRunCounts, setAlgorithmRunCounts] = useState<Map<string, number>>(new Map());
+  const holderId = useId();
+  const {
+    userId,
+    completions,
+    viewedTasks,
+    isSyncing,
+    pendingCount,
+    algorithmRunCounts,
+    isOwner,
+    refresh,
+    markTaskCompleted,
+    submitTestEvaluation,
+    deleteCompletionInStore,
+    assignTask,
+    markTaskViewed,
+  } = useTrainingStore(useShallow((s) => ({
+    userId: s.userId,
+    completions: s.completions,
+    viewedTasks: s.viewedTasks,
+    isSyncing: s.isSyncing,
+    pendingCount: s.pendingCount,
+    algorithmRunCounts: s.algorithmRunCounts,
+    isOwner: s.holders[0] === holderId,
+    refresh: s.refresh,
+    markTaskCompleted: s.markTaskCompleted,
+    submitTestEvaluation: s.submitTestEvaluation,
+    deleteCompletionInStore: s.deleteCompletion,
+    assignTask: s.assignTask,
+    markTaskViewed: s.markTaskViewed,
+  })));
 
-  const userIdRef = useRef<string | null>(null);
-  const initDone = useRef(false);
-  const cleanupRef = useRef<(() => void) | null>(null);
-
-  // State copies for the Realtime hook
-  const [realtimeUserId, setRealtimeUserId] = useState<string | null>(null);
-  const [realtimeAuthenticated, setRealtimeAuthenticated] = useState(false);
+  useEffect(() => acquireTraining(holderId), [holderId]);
 
   // Page visibility — pauses realtime channels when backgrounded
   const isPageVisible = usePageVisibility();
@@ -268,168 +87,15 @@ export function useTrainingCompletions() {
   // linked calendar event before the training row is removed.
   const { deleteEvent: deleteCalendarEvent } = useCalendarWrite();
 
-  // Auth version counter — incremented on SIGNED_IN / SIGNED_OUT to
-  // trigger the init effect to re-run with the new user context.
-  const [authVersion, setAuthVersion] = useState(0);
-
-  // ── Auth state tracking — re-init on login/logout ─────────
-
-  useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_OUT') {
-        setCompletions([]);
-        setViewedTasks(new Set());
-        setPendingCount(0);
-        setAlgorithmRunCounts(new Map());
-        setRealtimeUserId(null);
-        setRealtimeAuthenticated(false);
-        userIdRef.current = null;
-        initDone.current = false;
-      }
-      // auth-js re-emits SIGNED_IN for the same user on every tab resume; the
-      // refocus catch-up below already covers that, so only a real user change
-      // re-inits (each re-init is a read_audit pull).
-      const sameUser = event === 'SIGNED_IN' && !!userIdRef.current && session?.user?.id === userIdRef.current;
-      if ((event === 'SIGNED_IN' && !sameUser) || event === 'SIGNED_OUT') {
-        setAuthVersion((v) => v + 1);
-      }
-    });
-    return () => subscription.unsubscribe();
-  }, []);
-
-  /**
-   * Refresh the completions list from IndexedDB and update pending count.
-   */
-  const refreshCompletions = useCallback(async (userId: string) => {
-    // Read current state from the audit_log event fold. The fold's loaders
-    // read-through-cache server events into local IDB, so it is offline-complete;
-    // the legacy training_completions union has been retired (fold verified).
-    let items: TrainingCompletionUI[] = [];
-    try {
-      const loaded = await loadFoldedCompletions(userId);
-      items = loaded.completions;
-      setAlgorithmRunCounts(loaded.runCounts);
-    } catch (err) {
-      logger.warn('Fold load failed:', err);
-    }
-    // Sort newest first
-    items.sort(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    );
-    setCompletions(items);
-
-    // Update pending count
-    const pending = items.filter((c) => c.syncStatus === 'pending').length;
-    setPendingCount(pending);
-  }, []);
-
-  // ── Initialization ──────────────────────────────────────────
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function init() {
-      try {
-        // 1. Determine user context
-        const user = useAuthStore.getState().user;
-        const userId = user?.id || 'guest';
-        userIdRef.current = userId;
-        setRealtimeUserId(userId);
-        setRealtimeAuthenticated(userId !== 'guest');
-
-        if (cancelled) return;
-
-        // 2. Migrate from localStorage (training progress + supervisor tests)
-        const { viewedTaskIds } = await migrateTrainingProgress(userId);
-        if (viewedTaskIds.size > 0 && !cancelled) {
-          setViewedTasks(viewedTaskIds);
-        }
-
-        await migrateSupervisorTests(userId);
-
-        if (cancelled) return;
-
-        // 3. If authenticated and online, do initial sync
-        if (userId !== 'guest' && checkOnline()) {
-          try {
-            setIsSyncing(true);
-
-            // fullSync() handles reconciliation (pull) + push in one call.
-            // reconcileTrainingCompletionsWithServer() inside fullSync does the
-            // same last-write-wins merge that was previously duplicated here.
-            // Deduped across concurrent mounts via the shared coordinator so N
-            // consumers don't each fire their own pull on mount.
-            await ensureInitialTrainingSync(userId);
-          } catch (err) {
-            logger.warn('Initial sync failed, using local data:', err);
-          } finally {
-            if (!cancelled) setIsSyncing(false);
-          }
-        }
-
-        if (cancelled) return;
-
-        // 4. Load completions from IndexedDB into state
-        await refreshCompletions(userId);
-
-        // 5. Set up connectivity listeners for automatic sync
-        if (userId !== 'guest') {
-          cleanupRef.current = setupConnectivityListeners(userId, {
-            onStatusChange: () => {
-              // Online status tracked by the browser events useEffect below
-            },
-            onSyncStart: () => {
-              if (!cancelled) setIsSyncing(true);
-            },
-            onSyncComplete: () => {
-              if (!cancelled) {
-                setIsSyncing(false);
-                refreshCompletions(userId);
-              }
-            },
-            onReconcileComplete: () => {
-              if (!cancelled) {
-                refreshCompletions(userId);
-              }
-            },
-            onTrainingReconcileComplete: () => {
-              if (!cancelled) {
-                refreshCompletions(userId);
-              }
-            },
-          });
-        }
-
-        initDone.current = true;
-      } catch (err) {
-        logger.error('Initialization failed:', err);
-        initDone.current = true;
-      }
-    }
-
-    init();
-
-    return () => {
-      cancelled = true;
-      if (cleanupRef.current) {
-        cleanupRef.current();
-        cleanupRef.current = null;
-      }
-    };
-  }, [refreshCompletions, authVersion]);
-
   // ── Catch-up refresh when page becomes visible ─────────────
 
   const prevVisibleRef = useRef(true);
   useEffect(() => {
-    if (isPageVisible && !prevVisibleRef.current && initDone.current) {
-      const userId = userIdRef.current;
-      if (userId && userId !== 'guest') {
-        refreshCompletions(userId);
-      }
+    if (isOwner && isPageVisible && !prevVisibleRef.current) {
+      void refresh();
     }
     prevVisibleRef.current = isPageVisible;
-  }, [isPageVisible, refreshCompletions]);
+  }, [isOwner, isPageVisible, refresh]);
 
   // ── Query Operations ───────────────────────────────────────
 
@@ -553,217 +219,9 @@ export function useTrainingCompletions() {
 
   // ── Mutation Operations ────────────────────────────────────
 
-  const markTaskCompleted = useCallback(
-    (taskId: string): void => {
-      const userId = userIdRef.current;
-      if (!userId) return;
-
-      // Check if an assignment exists for this task — complete it instead of creating new
-      const existingAssignment = completions.find(
-        (c) => c.trainingItemId === taskId && c.completionType === 'assignment' && !c.completedAt
-      );
-
-      if (existingAssignment) {
-        // Optimistic: update the assignment in-place
-        const optimistic: TrainingCompletionUI = {
-          ...existingAssignment,
-          completionType: 'read',
-          result: 'GO',
-          completedAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          syncStatus: 'pending',
-        };
-        setCompletions((prev) =>
-          prev.map((c) => (c.id === existingAssignment.id ? optimistic : c))
-        );
-
-        completeAssignment({
-          completionId: existingAssignment.id,
-          medicUserId: userId,
-          completionType: 'read',
-          result: 'GO',
-          supervisorId: existingAssignment.supervisorId || userId,
-        })
-          .then((res) => {
-            if (!res.success) {
-              // Put the assignment back. The optimistic row said "done" against
-              // an event that was refused, and a refold would have restored the
-              // pending assignment anyway — do it now rather than a tick later.
-              logger.error('Complete assignment failed:', res.error);
-              setCompletions((prev) =>
-                prev.map((c) => (c.id === existingAssignment.id ? existingAssignment : c))
-              );
-              return;
-            }
-            setCompletions((prev) =>
-              prev.map((c) => (c.id === existingAssignment.id ? res.completion : c))
-            );
-          })
-          .catch((err) => {
-            logger.error('Complete assignment failed:', err);
-            refreshCompletions(userId);
-          });
-        return;
-      }
-
-      // Standard path: create a new read completion
-      const optimisticCompletion: TrainingCompletionUI = {
-        id: crypto.randomUUID(),
-        userId,
-        trainingItemId: taskId,
-        completionType: 'read',
-        result: 'GO',
-        supervisorId: null,
-        stepResults: null,
-        supervisorNotes: null,
-        dueDate: null,
-        calendarOriginId: null,
-        completedAt: new Date().toISOString(),
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        syncStatus: userId === 'guest' ? 'synced' : 'pending',
-      };
-
-      setCompletions((prev) => [optimisticCompletion, ...prev]);
-      if (userId !== 'guest') {
-        setPendingCount((prev) => prev + 1);
-      }
-
-      createReadCompletion(taskId, userId)
-        .then((res) => {
-          if (!res.success) {
-            // Drop the optimistic row — nothing was recorded, and leaving it up
-            // shows a completion that vanishes on the next refold with no
-            // explanation. Same reason the evaluator keeps its pane open.
-            logger.error('Create read completion failed:', res.error);
-            setCompletions((prev) => prev.filter((c) => c.id !== optimisticCompletion.id));
-            if (userId !== 'guest') setPendingCount((prev) => Math.max(0, prev - 1));
-            return;
-          }
-          setCompletions((prev) =>
-            prev.map((c) =>
-              c.id === optimisticCompletion.id ? res.completion : c
-            )
-          );
-          if (res.completion.syncStatus === 'synced' && userId !== 'guest') {
-            setPendingCount((prev) => Math.max(0, prev - 1));
-          }
-        })
-        .catch((err) => {
-          logger.error('Create read completion failed:', err);
-          refreshCompletions(userId);
-        });
-    },
-    [refreshCompletions, completions]
-  );
-
-  /**
-   * Record a supervisor's graded walk. Returns the outcome rather than void so
-   * the evaluator can hold its pane open on a refusal — a walk is minutes of
-   * work at a soldier's side, and closing it on a write that never landed loses
-   * every GO/NO_GO with nothing to retry from.
-   */
-  const submitTestEvaluation = useCallback(
-    async (params: {
-      medicUserId: string;
-      trainingItemId: string;
-      result: CompletionResult;
-      stepResults: StepResult[];
-      supervisorNotes?: string;
-    }): Promise<ServiceResult> => {
-      const userId = userIdRef.current;
-      if (!userId) return fail('Not signed in — the grade was not recorded.');
-
-      const res = await createTestCompletion({
-        ...params,
-        supervisorId: userId,
-      });
-      if (!res.success) {
-        logger.error('Submit test evaluation failed:', res.error);
-        return res;
-      }
-
-      // Add to state
-      setCompletions((prev) => [res.completion, ...prev]);
-      if (res.completion.syncStatus === 'pending') {
-        setPendingCount((prev) => prev + 1);
-      }
-      return succeed();
-    },
-    []
-  );
-
   const deleteCompletion = useCallback(
-    (completionId: string): void => {
-      const userId = userIdRef.current;
-      if (!userId) return;
-
-      // Optimistically remove from UI (id is a synthetic fold id).
-      setCompletions((prev) => prev.filter((c) => c.id !== completionId));
-
-      // Linked to a calendar event? cascade through the calendar delete gate —
-      // it fan-outs 'd' and cascades back via deleteCompletionsByCalendarOriginId
-      // (which voids the linked completions). calendarOriginId is populated on the
-      // fold rows by enrichCalendarLinks from the link projection.
-      const target = completions.find((c) => c.id === completionId);
-      if (target?.calendarOriginId) {
-        const event = useCalendarStore
-          .getState()
-          .events.find((e) => e.originId === target.calendarOriginId);
-        if (event) {
-          deleteCalendarEvent(event.id).catch((err) => {
-            logger.error('Cascade calendar delete failed:', err);
-            refreshCompletions(userId);
-          });
-          return;
-        }
-      }
-
-      // No linked event: event-source the delete (emit completion.voided + drop link).
-      // Refresh either way — on a refused void it is what puts the row back.
-      deleteCompletionApi(completionId, userId)
-        .then((res) => {
-          if (!res.success) logger.error('Delete completion failed:', res.error);
-          refreshCompletions(userId);
-        })
-        .catch((err) => {
-          logger.error('Delete completion failed:', err);
-          refreshCompletions(userId);
-        });
-    },
-    [refreshCompletions, completions, deleteCalendarEvent]
-  );
-
-  const assignTask = useCallback(
-    async (params: {
-      medicUserId: string;
-      trainingItemId: string;
-      dueDate: string;
-      notes?: string;
-    }): Promise<TrainingCompletionUI | null> => {
-      const userId = userIdRef.current;
-      if (!userId) return null;
-
-      const res = await createAssignment({
-        medicUserId: params.medicUserId,
-        trainingItemId: params.trainingItemId,
-        supervisorId: userId,
-        dueDate: params.dueDate,
-        supervisorNotes: params.notes,
-      });
-      if (!res.success) {
-        logger.error('Assign task failed:', res.error);
-        return null;
-      }
-
-      setCompletions((prev) => [res.completion, ...prev]);
-      if (res.completion.syncStatus === 'pending') {
-        setPendingCount((prev) => prev + 1);
-      }
-
-      return res.completion;
-    },
-    []
+    (completionId: string): void => deleteCompletionInStore(completionId, deleteCalendarEvent),
+    [deleteCompletionInStore, deleteCalendarEvent]
   );
 
   // ── Viewed Tasks (Local-Only) ──────────────────────────────
@@ -775,27 +233,18 @@ export function useTrainingCompletions() {
     [viewedTasks]
   );
 
-  const markTaskViewed = useCallback((taskId: string): void => {
-    setViewedTasks((prev) => {
-      if (prev.has(taskId)) return prev;
-      const next = new Set(prev);
-      next.add(taskId);
-      return next;
-    });
-  }, []);
-
   // ── Realtime: training completions subscription ────────────
 
   // Cross-device training events arrive as audit_log inserts. State is the event
   // fold (synthetic ids), so realtime can't mutate in place — it re-folds instead.
   const handleRealtimeChange = useCallback(() => {
-    const userId = userIdRef.current;
-    if (userId && userId !== 'guest') void refreshCompletions(userId);
-  }, [refreshCompletions]);
+    void refresh();
+  }, [refresh]);
 
+  const realtimeUserId = isOwner ? userId : null;
   useRealtimeTrainingCompletions({
     userId: realtimeUserId,
-    isAuthenticated: realtimeAuthenticated,
+    isAuthenticated: !!realtimeUserId && realtimeUserId !== 'guest',
     isPageVisible,
     onChange: handleRealtimeChange,
   });

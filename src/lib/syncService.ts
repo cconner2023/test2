@@ -676,6 +676,8 @@ export async function healStuckPendingRecords(userId: string): Promise<void> {
  *
  * Returns a cleanup function to remove the listeners.
  */
+let syncChain: Promise<void> = Promise.resolve()
+
 export function setupConnectivityListeners(
   userId: string,
   callbacks?: {
@@ -699,6 +701,7 @@ export function setupConnectivityListeners(
   let retryTimer: ReturnType<typeof setTimeout> | null = null
   /** Whether we've done the one-time session reset of permanently failed items. */
   let sessionResetDone = false
+  let disposed = false
 
   /** Schedule the next retry based on the soonest failed item's backoff time. */
   const scheduleNextRetry = async () => {
@@ -729,6 +732,16 @@ export function setupConnectivityListeners(
       retryTimer = null
     }
 
+    const run = syncChain.then(runSync)
+    syncChain = run.catch(() => {})
+    await run
+  }
+
+  const runSync = async () => {
+    if (disposed) {
+      syncInProgress = false
+      return
+    }
     try {
       callbacks?.onSyncStart?.()
 
@@ -867,6 +880,7 @@ export function setupConnectivityListeners(
   window.addEventListener('offline', handleOffline)
 
   return () => {
+    disposed = true
     window.removeEventListener('online', handleOnline)
     window.removeEventListener('offline', handleOffline)
     clearInterval(periodicTimer)

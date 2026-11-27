@@ -3,13 +3,13 @@ import { useSpring, animated } from '@react-spring/web'
 import { ChevronLeft, Plus, X, Play, Headset, Info, Settings, MessageSquare } from 'lucide-react'
 import { BaseDrawer } from '@/Components/primitives/BaseDrawer'
 import { BottomIsland } from '@/Components/primitives/BottomIsland'
+import { AddFab } from '@/Components/primitives/AddFab'
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
 import { PaneSurface } from '@/Components/primitives/PaneCard'
 import { createPaneHostStore, HostedPaneCard, PaneHostContext, type PaneHost } from '@/Components/primitives/paneHost'
 import { VoicemailGreetingSection } from './Settings/VoicemailGreetingSection'
 import { IncomingCallsSection } from './Settings/IncomingCallsSection'
 import { MessagingOncallSettings } from './Settings/MessagingOncallSettings'
-import { openIntakeLineMint } from './Settings/IntakeMintSection'
 import { SwipeActionsSection } from './Settings/SwipeActionsSection'
 import { MessagesPanel, type MessagesView, type MessagesPanelHandle, type MessagingLens } from './Settings/MessagesPanel'
 import { useMessagesContext } from '../Hooks/MessagesContext'
@@ -48,6 +48,12 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
         store: paneStore,
         onActiveChange: (active) => { if (active) setShowSettings(false) },
     }), [paneStore])
+    const [settingsPaneStore] = useState(createPaneHostStore)
+    const [settingsCovered, setSettingsCovered] = useState(false)
+    const settingsPaneHost = useMemo<PaneHost>(() => ({
+        store: settingsPaneStore,
+        onActiveChange: setSettingsCovered,
+    }), [settingsPaneStore])
     const openSettings = useCallback(() => {
         paneStore.get()?.onClose()
         setShowSettings(true)
@@ -280,19 +286,11 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
             <VoicemailGreetingSection />
         </div>
     )
-    // Minting a line is the only create in this surface, and it belongs on the
-    // container header rather than inside the Outside-contact section — same
-    // placement as the cluster panel's. Supervisor-gated to match the section
-    // itself, which renders nothing for anyone else.
-    const settingsActions = isSupervisorRole && settingsClinicId ? (
-        <PillButton icon={Plus} onClick={openIntakeLineMint} label="Add line" />
-    ) : undefined
     const settingsSurface = (
         <PaneSurface
             isOpen={showSettings}
             onClose={() => setShowSettings(false)}
             title="Messaging settings"
-            actions={settingsActions}
         >
             {settingsContent}
         </PaneSurface>
@@ -324,7 +322,6 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
                         </HeaderPill>
                         <h2 className="text-[13pt] font-semibold text-primary flex-1 truncate">Messages</h2>
                         <HeaderPill>
-                            <PillButton icon={Plus} onClick={() => panelRef.current?.openNew()} label="New" />
                             <PillButton icon={Settings} onClick={openSettings} label="Settings" />
                         </HeaderPill>
                     </div>
@@ -339,6 +336,7 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
                         glass
                         activeId={lens}
                         onSelect={(id) => setLens(id as typeof lens)}
+                        fab={<AddFab label="New" onClick={() => panelRef.current?.openNew()} className="absolute right-4" />}
                         stops={[
                             { id: 'chat', title: 'Chat', icon: <MessageSquare className="w-5 h-5" /> },
                             { id: 'calls', title: 'Calls', icon: <Headset className="w-5 h-5" /> },
@@ -366,13 +364,21 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
                     {panelContent}
                     <HostedPaneCard
                         store={paneStore}
+                        hidden={settingsCovered}
                         fallback={{
                             isOpen: showSettings,
                             onClose: () => setShowSettings(false),
                             title: 'Messaging settings',
-                            actions: settingsActions,
-                            children: settingsContent,
+                            children: (
+                                <PaneHostContext.Provider value={settingsPaneHost}>
+                                    {settingsContent}
+                                </PaneHostContext.Provider>
+                            ),
                         }}
+                    />
+                    <HostedPaneCard
+                        store={settingsPaneStore}
+                        fallback={{ isOpen: false, onClose: () => {}, title: '', children: null }}
                     />
                 </div>
             </PaneHostContext.Provider>

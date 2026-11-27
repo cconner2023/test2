@@ -261,7 +261,7 @@ export function PaneCard({
 export interface PaneSurfaceProps extends Omit<PaneCardProps, 'fill' | 'selfScroll' | 'header' | 'footer' | 'keepMounted' | 'leading' | 'eyebrow' | 'hideClose'> {
     /** Mobile Sheet cap, % of dvh. Default 80. */
     maxHeight?: number
-    /** Mobile Sheet z-index. Default 1200 (clears the mobileFullScreen drawers). */
+    /** Mobile Sheet z-index. Default 1200. */
     zIndex?: number
     /** Desktop PaneCard z-index. Default 50; raise it for an app-level card that
      *  must clear the desktop drawers (z-60 / z-[65]). */

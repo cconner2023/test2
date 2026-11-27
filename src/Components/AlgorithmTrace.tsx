@@ -1,5 +1,6 @@
 import { Component, createRef, type ReactNode } from 'react';
 import { ALGORITHM_TIMING } from '../Utilities/constants';
+import { MONTHS_UPPER as MON } from '../Utilities/dates';
 
 export interface TraceNode {
     id: string;
@@ -21,14 +22,14 @@ type Pt = [number, number];
 interface Pair { key: string; j: number; a: TraceNode; b: TraceNode }
 interface Seg { key: string; gU: SVGGElement; gO: SVGGElement; dU: SVGGElement; main: SVGPathElement; L: number; end: Pt; geo: string }
 interface Ghost { el: HTMLElement; b: Box }
-interface Branch { type: string; d: string; p?: Pt; P3?: Pt; E?: Pt; len?: number; dir?: number; term?: string; text?: string[] }
+interface Branch { type: string; d: string; p: Pt; E?: Pt; C?: Pt; q?: Pt; rejoin?: boolean; dir?: number; term?: string; text?: string[] }
+interface BranchCtx { gapTop: number; gapBot: number; text: string[]; main: SVGPathElement; L: number; t: number }
 
 const NS = 'http://www.w3.org/2000/svg';
 const LINE = 'var(--color-primary)';
 const BG = 'var(--color-themewhite2)';
 const INK2 = 'var(--color-tertiary)';
 const ACCENT = 'var(--trace-accent)';
-const MON = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
 const DISPO: Record<string, { n: number; c: string }> = {
     'CAT I': { n: 1, c: 'var(--color-themeredred)' },
     'CAT II': { n: 2, c: 'var(--color-themeyellow)' },
@@ -102,7 +103,14 @@ function glyphPaths(kind: string, [x, y]: Pt, s: number): string[] {
         }
         return [`M${x + s},${y} A${s},${s} 0 1 1 ${x - s},${y} A${s},${s} 0 1 1 ${x + s},${y}`, t];
     }
-    return [`M${x - s},${y + s} L${x - s},${y + s * .33} L${x - s * .33},${y + s * .33} L${x - s * .33},${y - s * .33} L${x + s * .33},${y - s * .33} L${x + s * .33},${y - s} L${x + s},${y - s}`];
+    const w = s * .62, h = s * .95;
+    return [`M${x - w},${y - h} L${x},${y} L${x - w},${y + h} L${x - 2 * w},${y} Z`, `M${x + w},${y - h} L${x + 2 * w},${y} L${x + w},${y + h} L${x},${y} Z`];
+}
+
+function glyphExtent(kind: string, dir: Pt, s: number) {
+    if (kind === 'ddiamond') return Math.abs(dir[0]) > Math.abs(dir[1]) ? s * 1.24 : s * .95;
+    if (kind === 'ring') return 3.4;
+    return s;
 }
 
 export class AlgorithmTrace extends Component<AlgorithmTraceProps> {
@@ -122,7 +130,6 @@ export class AlgorithmTrace extends Component<AlgorithmTraceProps> {
     private width = 0;
     private ro: ResizeObserver | null = null;
     private rz: ReturnType<typeof setTimeout> | undefined;
-    private gradId = 0;
     private nodesSig = '';
 
     componentDidMount() {
@@ -381,16 +388,6 @@ export class AlgorithmTrace extends Component<AlgorithmTraceProps> {
         }, delay);
     }
 
-    private fadeGrad(p0: Pt, p1: Pt, op: number) {
-        const under = this.under.current!;
-        const defs = under.querySelector('defs') ?? sv('defs', {}, under);
-        const id = `atg${++this.gradId}`;
-        const g = sv('linearGradient', { id, gradientUnits: 'userSpaceOnUse', x1: p0[0], y1: p0[1], x2: p1[0], y2: p1[1] }, defs);
-        css(sv('stop', { offset: 0 }, g), { stopColor: LINE, stopOpacity: String(op) });
-        css(sv('stop', { offset: 1 }, g), { stopColor: LINE, stopOpacity: '0' });
-        return `url(#${id})`;
-    }
-
     private glowNode(g: Element, x: number, y: number, color: string, delay: number, instant: boolean, size = 1) {
         const h = sv('circle', { cx: x, cy: y, r: 6.5 * size }, g); css(h, { fill: color, opacity: '.2' });
         const c = sv('circle', { cx: x, cy: y, r: 2.1 * size }, g); css(c, { fill: color });
@@ -408,66 +405,116 @@ export class AlgorithmTrace extends Component<AlgorithmTraceProps> {
         }
     }
 
-    private branchSpec(r: Rng, type: string, p: Pt, tan: Pt, W: number, ctx: { gapTop: number; gapBot: number; text: string[] }): Branch {
-        const ox = Math.sign(p[0] - W / 2) || 1;
+    private branchSpec(r: Rng, type: string, p: Pt, tan: Pt, W: number, ctx: BranchCtx): Branch {
+        const vert = Math.abs(tan[1]) >= Math.abs(tan[0]);
         if (type === 'readout') {
-            const E: Pt = [Math.min(W - 10, Math.max(10, p[0] + ox * R(r, 10, 30))), Math.min(ctx.gapBot - 18, Math.max(ctx.gapTop + 10, p[1] + R(r, 6, 24)))];
-            const d = `M${p} C${p[0] + tan[0] * 14},${p[1] + tan[1] * 14} ${E[0] + ox * 18},${E[1]} ${E[0]},${E[1]}`;
-            return { type, d, E, dir: -ox, text: ctx.text };
+            const away = Math.abs(tan[0]) > .25 ? -Math.sign(tan[0]) : (p[0] < W / 2 ? 1 : -1);
+            const dir = (away > 0 ? W - p[0] : p[0]) >= 90 ? away : -away;
+            let dy = R(r, 8, 16);
+            if (p[1] + dy > ctx.gapBot - 16) dy = -dy;
+            const k = vert ? Math.abs(dy) : 0, run = R(r, 10, 22);
+            const pts: Pt[] = vert
+                ? [p, [p[0] + dir * k, p[1] + dy], [p[0] + dir * (k + run), p[1] + dy]]
+                : [p, [p[0], p[1] + dy], [p[0] + dir * run, p[1] + dy]];
+            return { type, d: roundPath(pts, 3), p, E: pts[pts.length - 1], dir, text: ctx.text };
         }
-        const len = R(r, 50, 180), bend = R(r, .5, 1.1);
-        let vx = ox, vy = R(r, -.2, .7);
-        const vl = Math.hypot(vx, vy); vx /= vl; vy /= vl;
-        const P1: Pt = [p[0] + tan[0] * len * .35, p[1] + tan[1] * len * .35];
-        const P2: Pt = [p[0] + (tan[0] * .4 + vx * bend * .6) * len, p[1] + (tan[1] * .4 + vy * bend * .6) * len];
-        const P3: Pt = [p[0] + (tan[0] * .3 + vx * bend) * len, p[1] + (tan[1] * .3 + vy * bend) * len];
-        return { type, d: `M${p} C${P1} ${P2} ${P3}`, p, P3, len, term: pick(r, ['ring', 'ring', 'diamond', 'tri', 'ringticks', 'steps']) };
+        const t2 = ctx.t + R(r, .2, .34);
+        if (type === 'spur' && vert && t2 < .95 && r() < .5) {
+            const qp = ctx.main.getPointAtLength(t2 * ctx.L), q: Pt = [qp.x, qp.y];
+            if (q[1] - p[1] > 26) {
+                let ox = Math.sign(p[0] - W / 2) || 1;
+                const off = R(r, 9, 18);
+                const laneOf = (o: number) => o > 0 ? Math.max(p[0], q[0]) + off : Math.min(p[0], q[0]) - off;
+                let lane = laneOf(ox);
+                if (lane < 8 || lane > W - 8) { ox = -ox; lane = laneOf(ox); }
+                return { type, rejoin: true, p, q, d: roundPath([p, [lane, p[1]], [lane, q[1]], q], 5) };
+            }
+        }
+        let ox = Math.sign(p[0] - W / 2) || 1;
+        let h = R(r, 18, 52);
+        const v = R(r, 12, 30);
+        if (p[0] + ox * h > W - 12 || p[0] + ox * h < 12) {
+            const room = ox > 0 ? W - 12 - p[0] : p[0] - 12;
+            if (room < 18) ox = -ox; else h = room;
+        }
+        const vy = p[1] + v > ctx.gapBot - 6 && p[1] - v > ctx.gapTop + 6 ? -1 : 1;
+        const chamfer = r() < .45;
+        let pts: Pt[], edir: Pt;
+        if (vert) {
+            if (chamfer) {
+                const a = h * .45, c = v * .8;
+                pts = [p, [p[0] + ox * a, p[1]], [p[0] + ox * (a + c), p[1] + vy * c], [p[0] + ox * (a + c + 8), p[1] + vy * c]];
+                edir = [ox, 0];
+            } else {
+                pts = [p, [p[0] + ox * h, p[1]], [p[0] + ox * h, p[1] + vy * v]];
+                edir = [0, vy];
+            }
+        } else if (chamfer) {
+            const a = v * .5, c = Math.min(v * .8, h * .6);
+            pts = [p, [p[0], p[1] + vy * a], [p[0] + ox * c, p[1] + vy * (a + c)], [p[0] + ox * (c + 8), p[1] + vy * (a + c)]];
+            edir = [ox, 0];
+        } else {
+            pts = [p, [p[0], p[1] + vy * v], [p[0] + ox * h, p[1] + vy * v]];
+            edir = [ox, 0];
+        }
+        const term = pick(r, ['ring', 'ring', 'diamond', 'tri', 'ringticks', 'ddiamond']);
+        const E = pts[pts.length - 1], ext = glyphExtent(term, edir, 4.2);
+        const C: Pt = [E[0] + edir[0] * ext, E[1] + edir[1] * ext];
+        return { type, rejoin: false, p, E, C, term, d: roundPath(pts, chamfer ? 2 : 5) };
     }
 
     private drawBranch(g: Element, gTop: Element, s: Branch, instant: boolean) {
-        if (s.type === 'fade') {
-            const path = sv('path', { d: s.d, fill: 'none' }, g);
-            css(path, { stroke: this.fadeGrad(s.p!, s.P3!, .6), strokeWidth: '.8' });
-            this.drawIn(path, 260 + s.len! * 2, 0, instant);
+        if (s.type === 'readout') {
+            const j = sv('circle', { cx: s.p[0], cy: s.p[1], r: 1.3 }, g); css(j, { fill: LINE, opacity: '.7' });
+            this.popIn(j, 0, instant);
+            const path = this.strokePath(g, s.d, { color: LINE, w: .7, op: .5 });
+            const dur = 300;
+            this.drawIn(path, dur, 0, instant);
+            const dot = sv('circle', { cx: s.E![0], cy: s.E![1], r: 1.5 }, g);
+            css(dot, { fill: LINE, opacity: '.7' });
+            this.popIn(dot, dur, instant);
+            const anchor = s.dir! < 0 ? 'end' : 'start', tx = s.E![0] + s.dir! * 5;
+            s.text!.forEach((line, k) => {
+                const t = sv('text', { class: 'trace-mono', x: tx, y: s.E![1] + 2.5 + k * 10, 'text-anchor': anchor }, gTop);
+                css(t, { fill: INK2, opacity: k ? '.6' : '.95', stroke: BG, strokeWidth: '3', paintOrder: 'stroke', strokeLinejoin: 'round' });
+                this.typeText(t, line, dur + k * 220, instant);
+            });
             return;
         }
-        if (s.type === 'pulse') {
-            const path = this.strokePath(g, s.d, { color: LINE, w: .8, op: .4 });
-            const dur = 260 + s.len! * 2;
-            this.drawIn(path, dur, 0, instant);
-            const cd = 520 + s.len! * 3, arrive = dur + 80 + cd * .92;
-            let gp: string[] | null = null;
+        const path = this.strokePath(g, s.d, { color: LINE, w: .8, op: s.type === 'pulse' ? .4 : .5 });
+        const len = path.getTotalLength();
+        const dur = 220 + len * 2.2;
+        this.drawIn(path, dur, 0, instant);
+        const j0 = sv('circle', { cx: s.p[0], cy: s.p[1], r: 1.4 }, g); css(j0, { fill: LINE, opacity: '.75' });
+        this.popIn(j0, 0, instant);
+        const cd = 480 + len * 3, arrive = dur + 80 + cd * .92;
+        let gp: string[] | null = null;
+        let endPt: Pt;
+        if (s.rejoin) {
+            endPt = s.q!;
+            const j1 = sv('circle', { cx: endPt[0], cy: endPt[1], r: 2.2 }, g);
+            css(j1, { fill: BG, stroke: LINE, strokeWidth: '.8', opacity: '.8' });
+            this.popIn(j1, dur * .95, instant);
+        } else {
+            endPt = s.C!;
             if (s.term === 'ring') {
-                const c = sv('circle', { cx: s.P3![0], cy: s.P3![1], r: 3.4 }, g);
-                css(c, { fill: BG, stroke: LINE, strokeWidth: '.8', opacity: '.6' });
+                const c = sv('circle', { cx: endPt[0], cy: endPt[1], r: 3.4 }, g);
+                css(c, { fill: BG, stroke: LINE, strokeWidth: '.8', opacity: '.7' });
                 this.popIn(c, dur * .9, instant);
             } else {
-                gp = glyphPaths(s.term!, s.P3!, 4.2);
-                gp.forEach(d => this.drawIn(this.strokePath(g, d, { color: LINE, w: .8, op: .6 }), 240, dur * .9, instant));
+                gp = glyphPaths(s.term!, endPt, 4.2);
+                gp.forEach(d => this.drawIn(this.strokePath(g, d, { color: LINE, w: .8, op: .65 }), 240, dur * .9, instant));
             }
-            if (!instant) {
-                this.comet(g, s.d, ACCENT, cd, dur + 80);
-                this.pulse(g, s.P3![0], s.P3![1], ACCENT, arrive, 3.5);
-                gp?.forEach(d => {
-                    const f = this.strokePath(g, d, { color: ACCENT, w: 1.1, op: 0 });
-                    const a = f.animate([{ opacity: 0 }, { opacity: .9 }, { opacity: 0 }], { duration: 700, delay: arrive, easing: 'ease-out' });
-                    a.onfinish = () => f.remove();
-                });
-            }
-            return;
         }
-        const path = this.strokePath(g, s.d, { color: LINE, w: .7, op: .5 });
-        const dur = 300;
-        this.drawIn(path, dur, 0, instant);
-        const dot = sv('circle', { cx: s.E![0], cy: s.E![1], r: 1.5 }, g);
-        css(dot, { fill: LINE, opacity: '.7' });
-        this.popIn(dot, dur, instant);
-        const anchor = s.dir! < 0 ? 'end' : 'start', tx = s.E![0] + s.dir! * 5;
-        s.text!.forEach((line, k) => {
-            const t = sv('text', { class: 'trace-mono', x: tx, y: s.E![1] + 2.5 + k * 10, 'text-anchor': anchor }, gTop);
-            css(t, { fill: INK2, opacity: k ? '.6' : '.95', stroke: BG, strokeWidth: '3', paintOrder: 'stroke', strokeLinejoin: 'round' });
-            this.typeText(t, line, dur + k * 220, instant);
-        });
+        if (!instant && (s.type === 'pulse' || s.rejoin)) {
+            this.comet(g, s.d, ACCENT, cd, dur + 80);
+            this.pulse(g, endPt[0], endPt[1], ACCENT, arrive, 3.5);
+            gp?.forEach(d => {
+                const f = this.strokePath(g, d, { color: ACCENT, w: 1.1, op: 0 });
+                const a = f.animate([{ opacity: 0 }, { opacity: .9 }, { opacity: 0 }], { duration: 700, delay: arrive, easing: 'ease-out' });
+                a.onfinish = () => f.remove();
+            });
+        }
     }
 
     private drawSegment(pr: Pair, instant: boolean, onReveal?: () => void, tok = this.token): Promise<void> {
@@ -578,7 +625,7 @@ export class AlgorithmTrace extends Component<AlgorithmTraceProps> {
         }
 
         const nb = pick(r, [1, 2, 2, 3]);
-        const types = ['fade', 'pulse', 'readout'].sort(() => r() - .5);
+        const types = ['spur', 'pulse', 'readout'].sort(() => r() - .5);
         const readText = [dtg(when.at), `T+${mmss(when.t - this.t0)}`];
         for (let k = 0; k < nb; k++) {
             const type = types[k % 3];
@@ -593,7 +640,7 @@ export class AlgorithmTrace extends Component<AlgorithmTraceProps> {
             const at = t * L;
             const p = main.getPointAtLength(at), q = main.getPointAtLength(Math.min(L, at + 1.5));
             const tl = Math.hypot(q.x - p.x, q.y - p.y) || 1;
-            const spec = this.branchSpec(r, type, [p.x, p.y], [(q.x - p.x) / tl, (q.y - p.y) / tl], W, { gapTop, gapBot, text: readText });
+            const spec = this.branchSpec(r, type, [p.x, p.y], [(q.x - p.x) / tl, (q.y - p.y) / tl], W, { gapTop, gapBot, text: readText, main, L, t });
             decos.push({ t, run: inst => this.drawBranch(dU, gO, spec, inst) });
         }
 

@@ -66,7 +66,7 @@ export function DayView({ date, events, onSelectEvent, onMoveEvent, onEventConte
   useEffect(() => {
     if (!scrollRef.current) return
     const now = new Date()
-    const isToday = now.toISOString().slice(0, 10) === dateKey
+    const isToday = toDateKey(now) === dateKey
     const scrollToHour = isToday ? Math.max(0, now.getHours() - 1) : 6
     scrollRef.current.scrollTop = scrollToHour * HOUR_HEIGHT_PX
   }, [dateKey])

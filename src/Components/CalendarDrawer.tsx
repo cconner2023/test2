@@ -22,6 +22,7 @@ import { CalendarClinicEditor } from './Calendar/CalendarClinicEditor'
 import { SupervisorClinicFilterPanel, ClusterFilterPanel } from './SupervisorClinicSwitcher'
 import { useSubClusters } from '../Hooks/useSubClusters'
 import type { EventCategory } from '../Types/CalendarTypes'
+import { toDateKey } from '../Utilities/dates'
 
 const CATEGORY_GROUPS: { key: 'huddle' | 'calendar'; label: string; categories: EventCategory[] }[] = [
   { key: 'huddle',   label: 'Huddle',   categories: ['huddle', 'templated'] },
@@ -86,11 +87,7 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
     // Snap to the staged initial date (or today) and trigger scroll whenever the drawer opens
     useEffect(() => {
         if (isVisible) {
-            let key = initialDate
-            if (!key) {
-                const today = new Date()
-                key = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
-            }
+            const key = initialDate || toDateKey(new Date())
             setSelectedDate(key)
             setScrollNonce(n => n + 1)
             if (initialDate) clearInitialDate()
@@ -299,7 +296,7 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
         <BaseDrawer
             isVisible={isVisible}
             onClose={onClose}
-            mobileFullScreen
+            mobilePanel
             header={{
                 title: isMobile ? '' : 'Calendar',
                 rightContentFill: isMobile,

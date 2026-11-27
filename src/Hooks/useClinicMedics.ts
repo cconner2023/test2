@@ -43,6 +43,13 @@ const useClinicMedicsStore = create<ClinicMedicsState>(() => ({
 
 // Single in-flight network refresh, shared so concurrent mounts don't stack RPCs.
 let inflight: Promise<void> | null = null
+let generation = 0
+
+export function resetClinicMedics(): void {
+  generation++
+  inflight = null
+  useClinicMedicsStore.setState({ medics: [], loading: false, error: null, fetchedKey: null, hydrated: false })
+}
 
 /** RPC-first roster fetch with same-clinic fallback. Returns null on soft failure. */
 async function fetchMedicsFromNetwork(userId: string): Promise<ClinicMedic[] | null> {
@@ -123,6 +130,7 @@ async function fetchMedicsFromNetwork(userId: string): Promise<ClinicMedic[] | n
 }
 
 async function runNetworkRefresh(userId: string, key: string): Promise<void> {
+  const gen = generation
   // Only show the spinner on a cold start (no roster yet). Background refreshes
   // after cache hydration stay silent — no flash.
   if (useClinicMedicsStore.getState().medics.length === 0) {
@@ -131,6 +139,7 @@ async function runNetworkRefresh(userId: string, key: string): Promise<void> {
   useClinicMedicsStore.setState({ error: null })
   try {
     const medics = await fetchMedicsFromNetwork(userId)
+    if (gen !== generation) return
     if (medics) {
       useClinicMedicsStore.setState({ medics, fetchedKey: key, loading: false })
       saveCachedClinicUsers(medics).catch(() => {})
@@ -139,6 +148,7 @@ async function runNetworkRefresh(userId: string, key: string): Promise<void> {
       useClinicMedicsStore.setState({ loading: false })
     }
   } catch (err) {
+    if (gen !== generation) return
     const message = err instanceof Error ? err.message : 'Failed to fetch medics'
     logger.error('fetchMedics failed:', message)
     useClinicMedicsStore.setState({ error: message, loading: false })
@@ -154,8 +164,9 @@ async function ensureClinicMedics(userId: string, key: string, force = false): P
   // first caller flips `hydrated` before any await and later callers skip it.
   if (!useClinicMedicsStore.getState().hydrated) {
     useClinicMedicsStore.setState({ hydrated: true })
+    const gen = generation
     const cached = await loadCachedClinicUsers().catch(() => [] as ClinicMedic[])
-    if (cached.length > 0 && useClinicMedicsStore.getState().medics.length === 0) {
+    if (gen === generation && cached.length > 0 && useClinicMedicsStore.getState().medics.length === 0) {
       logger.info(`Loaded ${cached.length} medics from cache`)
       useClinicMedicsStore.setState({ medics: cached })
     }

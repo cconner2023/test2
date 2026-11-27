@@ -4,6 +4,7 @@ import { barcodeSymbols, renderBarcodeSymbol } from '../Utilities/barcodeCodec';
 import { createLogger } from '../Utilities/Logger';
 import { UI_TIMING } from '../Utilities/constants';
 import { emitCopied } from '../lib/copyFeedback';
+import { downloadBlob } from '../Utilities/downloadUtils';
 
 /** Minimal note shape needed for sharing. */
 export interface ShareableNote {
@@ -149,14 +150,7 @@ export function useNoteShare() {
                     emitCopied('Barcode copied');
                 } catch {
                     // Fallback: download the image
-                    const url = URL.createObjectURL(blob);
-                    const link = document.createElement('a');
-                    link.href = url;
-                    link.download = fileName;
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                    URL.revokeObjectURL(url);
+                    downloadBlob(blob, fileName);
                     setShareStatus('shared');
                 }
             }

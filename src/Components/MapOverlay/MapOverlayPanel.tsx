@@ -91,6 +91,8 @@ import { GeoPdfImportForm } from './GeoPdfImportForm';
 import { latLngToUTM } from './utmProjection';
 import { latLngToMgrs } from '../../lib/mgrsFormat';
 import { copyText } from '../../Utilities/clipboardUtils';
+import { downloadBlob } from '../../Utilities/downloadUtils';
+import { toDateKey } from '../../Utilities/dates';
 
 function VertexCoordInput({ onAdd }: { onAdd: (lat: number, lng: number) => void }) {
   const [value, setValue] = useState('');
@@ -1251,21 +1253,14 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
       ? serializeGPX(overlay.features, overlay.name || 'Overlay')
       : serializeKML(overlay.features, overlay.name || 'Overlay');
     const blob = new Blob([text], { type: format === 'gpx' ? 'application/gpx+xml' : 'application/vnd.google-earth.kml+xml' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${(overlay.name || 'overlay').replace(/[^\w\-]+/g, '_')}.${format}`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
+    downloadBlob(blob, `${(overlay.name || 'overlay').replace(/[^\w\-]+/g, '_')}.${format}`);
   }, []);
 
   const handleNewOverlay = useCallback((opts?: { recenter?: boolean }) => {
     const id = crypto.randomUUID();
     const center = initialCenter ?? mapCenter;
     // Default-name unnamed overlays to today's date (renameable from the tree).
-    const name = new Date().toISOString().slice(0, 10);
+    const name = toDateKey(new Date());
     setOverlayId(id);
     setOverlayName(name);
     setFeatures([]);
@@ -1788,7 +1783,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
     if (!name) {
       // Auto-default unnamed overlays to today's date so autosave doesn't need
       // a modal; user can rename via the tree afterwards.
-      name = new Date().toISOString().slice(0, 10);
+      name = toDateKey(new Date());
       setOverlayName(name);
     }
 
@@ -2576,7 +2571,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
         }
         onClose();
       }}
-      mobileFullScreen
+      mobilePanel
       fullHeight="95dvh"
       header={drawerHeader}
       glassHeader={isMobile}

@@ -57,6 +57,12 @@ interface UseSupabaseSubscriptionOptions<TRow extends Record<string, unknown>> {
 /** Delays before rebuilding a server-closed channel; reset once it joins. */
 const REOPEN_BACKOFF_MS = [3_000, 10_000, 30_000, 60_000]
 
+// Per-subscribe topic suffix. removeChannel is async — the old channel stays
+// registered until the leave reply — so re-subscribing under the same name
+// (a quick hidden→visible flip) would get the leaving channel back from
+// supabase.channel() and never receive SUBSCRIBED.
+let topicSeq = 0
+
 export function useSupabaseSubscription<TRow extends Record<string, unknown>>({
   shouldSubscribe,
   channelName,
@@ -70,12 +76,6 @@ export function useSupabaseSubscription<TRow extends Record<string, unknown>>({
   // CHANNEL_ERROR/TIMED_OUT on its own, but a server-side close is final.
   const [reopen, setReopen] = useState(0)
   const reopenAttempt = useRef(0)
-  // Per-subscribe topic suffix. removeChannel is async — the old channel stays
-  // registered until the leave reply — so re-subscribing under the same name
-  // (a quick hidden→visible flip) would get the leaving channel back from
-  // supabase.channel() and never receive SUBSCRIBED.
-  const topicSeq = useRef(0)
-
   // Keep the payload handler in a ref so the subscription never goes stale
   // while also not causing re-subscriptions when the callback identity changes.
   const onPayloadRef = useRef(onPayload)
@@ -108,10 +108,11 @@ export function useSupabaseSubscription<TRow extends Record<string, unknown>>({
     logger.info(`Subscribing to ${channelName}`)
     let disposed = false
     let reopenTimer: ReturnType<typeof setTimeout> | null = null
-    topicSeq.current += 1
+    topicSeq += 1
+    const topic = `${channelName}:${topicSeq}`
 
     const channel = supabase
-      .channel(`${channelName}:${topicSeq.current}`)
+      .channel(topic)
       .on<TRow>(
         'postgres_changes',
         {
@@ -153,5 +154,5 @@ export function useSupabaseSubscription<TRow extends Record<string, unknown>>({
     // caller's identity values (userId, clinicId, etc.) change, which
     // should trigger a re-subscription.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shouldSubscribe, channelName, postgresFilter.table, postgresFilter.filter, postgresFilter.event, cleanup, reopen])
+  }, [shouldSubscribe, channelName, postgresFilter.schema, postgresFilter.table, postgresFilter.filter, postgresFilter.event, cleanup, reopen])
 }

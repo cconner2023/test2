@@ -23,6 +23,13 @@ import { clearAllSessions } from '../lib/signal/session'
 import { clearMessageStore, destroyMessageStore } from '../lib/signal/messageStore'
 import { clearClinicUsersCache } from '../lib/clinicUsersCache'
 import { clearSubClusterCache } from '../lib/subClusterCache'
+import { clearAllUserData } from '../lib/offlineDb'
+import { destroyOutsideEntityChannels } from '../lib/outsideEntityChannelStore'
+import { clearInviteCache } from '../lib/clinicInviteCache'
+import { clearActiveDraft } from '../lib/medevacDb'
+import { useMedevacStore } from './useMedevacStore'
+import { useMapSearchStore } from './useMapSearchStore'
+import { useNavPreferencesStore } from './useNavPreferencesStore'
 import { clearDeviceCache } from '../lib/signal/deviceCache'
 import { clearSubClusterSnapshots } from '../Hooks/useSubClusters'
 import { dbName } from '../lib/idbEnv'
@@ -49,6 +56,7 @@ import type { User, Session } from '@supabase/supabase-js'
 import type { UserTypes, TextExpander } from '../Data/User'
 import type { AvatarBlob } from '../Types/SupervisorTestTypes'
 import type { DeviceRole } from '../lib/signal/transportTypes'
+import { emptyMedevacRequest } from '../Types/MedevacTypes'
 
 const STORAGE_KEY = 'adtmc_user_profile'
 const LOCAL_SESSION_KEY = 'adtmc_local_session'
@@ -784,6 +792,19 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
           }
         })
       }
+      await Promise.allSettled([
+        clearAllUserData(),
+        destroyOutsideEntityChannels(),
+        clearInviteCache(),
+        clearActiveDraft(),
+        import('../Hooks/useClinicMedics').then(m => m.resetClinicMedics()),
+        import('./useFeatureVotesStore').then(m => m.useFeatureVotesStore.getState().reset()),
+        import('./useTC3Store').then(m => {
+          const tc3 = m.useTC3Store.getState()
+          tc3.resetCard()
+          tc3.clearQueue()
+        }),
+      ])
     })()
 
     if (LORA_MESH_ENABLED) {
@@ -796,6 +817,9 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
     clearSubClusterSnapshots()
     useCallStore.getState().reset()
     useCalendarStore.setState({ events: [], tracking: [], hydrated: false, vaultReplayDone: false })
+    useMedevacStore.setState({ req: emptyMedevacRequest() })
+    useMapSearchStore.getState().clearRecents()
+    useNavPreferencesStore.getState().resetToDefault()
 
     // Aggressively wipe browser storage, but preserve keys that should survive
     // sign-out: FCM token (so push subscriptions survive involuntary SIGNED_OUT
@@ -1191,14 +1215,6 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
       try { await _pendingSignOutCleanup } catch { /* allSettled inside, but be defensive */ }
       _pendingSignOutCleanup = null
     }
-    // Casualty cards go only on a deliberate sign-out, not in handleSignedOut: that
-    // also runs on involuntary SIGNED_OUT (iOS PWA kills, expiry), which would wipe an
-    // in-progress MASCAL queue mid-event.
-    try {
-      const tc3 = (await import('./useTC3Store')).useTC3Store.getState()
-      tc3.resetCard()
-      tc3.clearQueue()
-    } catch { /* best-effort */ }
   },
 
   patchProfile: (fields) => {

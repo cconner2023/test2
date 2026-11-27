@@ -321,7 +321,7 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
             desktopPosition="left"
             isVisible={isVisible}
             onClose={handleClose}
-            mobileFullScreen
+            mobilePanel
             fullHeight="95dvh"
             header={headerConfig}
             glassHeader={isMobile}

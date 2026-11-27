@@ -43,7 +43,7 @@ import { createSubCluster, renameSubCluster, deleteSubCluster } from '../../lib/
 import { ErrorDisplay } from '@/Components/primitives/ErrorDisplay'
 import { UserAvatar } from './UserAvatar'
 import { IntakeMintSection } from './IntakeMintSection'
-import { PreviewOverlay } from '../PreviewOverlay'
+import { PaneStack, type StackScreen } from '@/Components/primitives/PaneStack'
 import { ActionButton } from '@/Components/primitives/ActionButton'
 import { OverlayActionMenu } from '@/Components/primitives/OverlayActionMenu'
 import type { ContextMenuItem } from '@/Components/primitives/ContextMenu'
@@ -57,6 +57,7 @@ import { PageSectionHeader, SectionCard } from '@/Components/primitives/Section'
 import { SettingsPage, SettingsColumn, SettingsSpan, TileGrid } from './SettingsPage'
 import { FieldLabel } from '@/Components/primitives/FieldCell'
 import { copyText, copyImage } from '../../Utilities/clipboardUtils'
+import { downloadBlob } from '../../Utilities/downloadUtils'
 
 /** Roster bucket that isn't a sub-unit — tenure, not structure. */
 const LOANED_IN_GROUP = '__loaned_in__'
@@ -133,13 +134,12 @@ export function ClinicPanel({
   const clinicCardRef = useRef<HTMLDivElement>(null)
   const [clinicEditAnchor, setClinicEditAnchor] = useState<DOMRect | null>(null)
 
-  // Add-member FAB ref (Users section roster menu anchor)
-  const addMemberFabRef = useRef<HTMLDivElement>(null)
-
   // Share QR — hidden high-res canvas drives navigator.share / clipboard.write
   const shareCanvasElRef = useRef<HTMLCanvasElement | null>(null)
+  const shareBlobRef = useRef<Blob | null>(null)
   const shareCanvasRef = useCallback((canvas: HTMLCanvasElement | null) => {
     shareCanvasElRef.current = canvas
+    shareBlobRef.current = null
     if (!canvas || !activeCode) return
     try {
       bwipjs.toCanvas(canvas, {
@@ -148,16 +148,14 @@ export function ClinicPanel({
         scale: 8,
         padding: 4,
       })
+      canvas.toBlob((blob) => { if (shareCanvasElRef.current === canvas) shareBlobRef.current = blob }, 'image/png')
     } catch {
       // QR render failure is non-critical
     }
   }, [activeCode])
 
   const handleShareInviteImage = useCallback(() => {
-    const canvas = shareCanvasElRef.current
-    if (!canvas) return
-    canvas.toBlob(async (blob) => {
-      if (!blob) return
+    const shareInviteBlob = async (blob: Blob) => {
       const filename = 'clinic-invite-qr.png'
       const file = new File([blob], filename, { type: 'image/png' })
       try {
@@ -165,23 +163,21 @@ export function ClinicPanel({
           await navigator.share({ files: [file], title: 'Cluster invite' })
           return
         }
-      } catch {
-        // user cancelled or share failed — fall through
+      } catch (err) {
+        if ((err as DOMException)?.name === 'AbortError') return
       }
       try {
         if (await copyImage(blob, 'QR image copied')) return
       } catch {
         // clipboard image not supported — fall through to download
       }
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = filename
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(url)
-    }, 'image/png')
+      downloadBlob(blob, filename)
+    }
+    const ready = shareBlobRef.current
+    if (ready) { void shareInviteBlob(ready); return }
+    const canvas = shareCanvasElRef.current
+    if (!canvas) return
+    canvas.toBlob((blob) => { if (blob) void shareInviteBlob(blob) }, 'image/png')
   }, [])
 
   // Clinic details
@@ -305,10 +301,9 @@ export function ClinicPanel({
   ), [renderMemberRow])
 
   // Associated clinic popover
-  const assocFabRef = useRef<HTMLDivElement>(null)
   const [assocPopover, setAssocPopover] = useState<
-    | { mode: 'info'; anchor: DOMRect; clinic: { clinicId: string; clinicName: string; uics: string[]; location: string | null } }
-    | { mode: 'add'; anchor: DOMRect }
+    | { mode: 'info'; clinic: { clinicId: string; clinicName: string; uics: string[]; location: string | null } }
+    | { mode: 'add' }
     | null
   >(null)
   const [assocSaving, setAssocSaving] = useState(false)
@@ -414,8 +409,12 @@ export function ClinicPanel({
     setJoinFeedback(null)
   }, [scanning, stopScanning])
 
-  const openAssocInfoPopover = useCallback((clinic: { clinicId: string; clinicName: string; uics: string[]; location: string | null }, target: HTMLElement) => {
-    setAssocPopover({ mode: 'info', anchor: target.getBoundingClientRect(), clinic })
+  const dismissAssocPopover = useCallback(() => {
+    if (!assocSaving) closeAssocPopover()
+  }, [assocSaving, closeAssocPopover])
+
+  const openAssocInfoPopover = useCallback((clinic: { clinicId: string; clinicName: string; uics: string[]; location: string | null }) => {
+    setAssocPopover({ mode: 'info', clinic })
     setAssocCode(null)
     setAssocCodeLoading(true)
     getAssociatedClinicCode(clinic.clinicId).then((r) => {
@@ -430,8 +429,7 @@ export function ClinicPanel({
   }, [assocCode])
 
   const openAssocAddPopover = useCallback(() => {
-    if (!assocFabRef.current) return
-    setAssocPopover({ mode: 'add', anchor: assocFabRef.current.getBoundingClientRect() })
+    setAssocPopover({ mode: 'add' })
     setJoinCode('')
     setJoinFeedback(null)
   }, [])
@@ -731,6 +729,135 @@ export function ClinicPanel({
   const showColocatedBanner =
     colocated.length > 0 && !!clinicLocationId && colocatedDismissedLoc !== clinicLocationId
 
+  const assocInfo = assocPopover?.mode === 'info' ? assocPopover.clinic : null
+  const assocScreens: Record<string, StackScreen> = {
+    info: {
+      title: assocInfo?.clinicName ?? '',
+      footer: assocInfo ? (
+        <FooterPill>
+          <ActionButton
+            icon={Trash2}
+            label="Disassociate"
+            variant="danger"
+            onClick={() => setConfirmDisassociate({
+              clinicId: assocInfo.clinicId,
+              clinicName: assocInfo.clinicName,
+            })}
+          />
+        </FooterPill>
+      ) : undefined,
+      render: () => assocInfo ? (
+        <div>
+          <div className="flex items-center justify-between border-b border-primary/6 px-4 py-3">
+            <FieldLabel className="w-20">UICs</FieldLabel>
+            <span className="text-sm text-primary truncate ml-3">{assocInfo.uics.join(', ') || '—'}</span>
+          </div>
+          <div className="flex items-center justify-between border-b border-primary/6 px-4 py-3">
+            <FieldLabel className="w-20">Location</FieldLabel>
+            <span className="text-sm text-primary truncate ml-3">{assocInfo.location || '—'}</span>
+          </div>
+          <div className="flex items-center justify-between gap-3 px-4 py-3">
+            <FieldLabel className="w-20">Code</FieldLabel>
+            {assocCodeLoading ? (
+              <Skeleton className="h-3 w-24 rounded-full" />
+            ) : assocCode ? (
+              <button
+                type="button"
+                onClick={handleCopyAssocCode}
+                className="flex items-center gap-2 text-sm font-mono tracking-[0.15em] text-primary hover:text-themeblue3 active:scale-95 transition-all"
+              >
+                <span>{assocCode}</span>
+                <Copy size={14} />
+              </button>
+            ) : (
+              <span className="text-sm text-tertiary">—</span>
+            )}
+          </div>
+        </div>
+      ) : null,
+    },
+    add: {
+      title: 'Associate a clinic',
+      footer: (
+        <FooterPill>
+          <ActionButton
+            icon={Camera}
+            label={scanning ? 'Stop scan' : 'Scan QR'}
+            variant={scanning ? 'success' : 'default'}
+            onClick={handleToggleScan}
+          />
+          <ActionButton
+            icon={ImagePlus}
+            label="Upload"
+            onClick={handlePhotoUpload}
+          />
+        </FooterPill>
+      ),
+      rightFooter: joinCode && !assocSaving ? (
+        <FooterPill side="right">
+          <ActionButton
+            icon={Check}
+            label="Associate"
+            variant="confirm"
+            onClick={() => redeemAssocCode(joinCode)}
+          />
+        </FooterPill>
+      ) : undefined,
+      render: () => (
+        <div>
+          <div className="flex items-center border-b border-primary/6 px-4 py-3">
+            <FieldLabel className="w-20">Code</FieldLabel>
+            <input
+              type="text"
+              value={joinCode}
+              onChange={(e) =>
+                setJoinCode(e.target.value.toUpperCase().replace(/[^0-9A-Z]/g, '').slice(0, 8))
+              }
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && joinCode.length > 0) redeemAssocCode(joinCode)
+              }}
+              placeholder="Enter invite code"
+              maxLength={8}
+              className="flex-1 bg-transparent font-mono tracking-[0.15em] text-primary placeholder:font-sans placeholder:tracking-normal placeholder:text-tertiary focus:outline-none text-sm min-w-0"
+            />
+          </div>
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleFileChange}
+            className="hidden"
+          />
+
+          {scanning && (
+            <div className="px-4 py-3">
+              <div className="relative w-full aspect-4/3 rounded-lg overflow-hidden bg-black/5 border border-tertiary/10">
+                <video
+                  ref={videoRef}
+                  className="absolute inset-0 w-full h-full object-cover"
+                  playsInline
+                  muted
+                />
+                {!isScanning && !scanError && (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <p className="text-[10pt] text-tertiary">Starting camera…</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {(joinFeedback?.type === 'error' || scanError) && (
+            <div className="px-4 py-2">
+              <ErrorPill>{joinFeedback?.message || scanError}</ErrorPill>
+            </div>
+          )}
+        </div>
+      ),
+    },
+  }
+
   return (
     <div className="flex flex-col h-full">
       {/* Two columns once the page is wide: identity, outside contact and
@@ -872,7 +999,7 @@ export function ClinicPanel({
                     >
                     <button
                       type="button"
-                      onClick={(e) => openAssocInfoPopover(clinic, e.currentTarget)}
+                      onClick={() => openAssocInfoPopover(clinic)}
                       className="w-full flex items-center gap-3 py-2 px-2 rounded-lg text-left hover:bg-secondary/5 active:scale-95 transition-all"
                     >
                       <div className="w-8 h-8 rounded-full flex items-center justify-center bg-tertiary/10 shrink-0">
@@ -896,7 +1023,7 @@ export function ClinicPanel({
               )}
             </div>
             </div>
-            <ActionPill ref={assocFabRef} shadow="sm" placement="overlay">
+            <ActionPill shadow="sm" placement="overlay">
               <ActionButton icon={Plus} label="Associate a cluster" onClick={openAssocAddPopover} />
             </ActionPill>
           </div>
@@ -927,7 +1054,6 @@ export function ClinicPanel({
             emptyText="No members assigned"
             className=""
             addActions={rosterAddActions}
-            addAnchorRef={addMemberFabRef}
             onCreateSubUnit={canManageSubUnits ? async (name) => {
               const r = await createSubCluster(name)
               if (r.success) invalidate('subClusters')
@@ -1015,144 +1141,13 @@ export function ClinicPanel({
       />
 
       {/* Associated clinic popover — info (with delete) or add (code/scan/upload) */}
-      <PreviewOverlay
+      <PaneStack
         isOpen={!!assocPopover}
+        onClose={dismissAssocPopover}
+        initial={{ key: assocPopover?.mode ?? 'add' }}
+        screens={assocScreens}
         loading={assocSaving}
-        onClose={closeAssocPopover}
-        anchorRect={assocPopover?.anchor ?? null}
-        title={
-          assocPopover?.mode === 'add'
-            ? 'Associate a clinic'
-            : assocPopover?.mode === 'info'
-              ? assocPopover.clinic.clinicName
-              : ''
-        }
-        maxWidth={360}
-        previewMaxHeight="60dvh"
-        footer={
-          assocPopover?.mode === 'info' ? (
-            <FooterPill>
-              <ActionButton
-                icon={Trash2}
-                label="Disassociate"
-                variant="danger"
-                onClick={() => setConfirmDisassociate({
-                  clinicId: assocPopover.clinic.clinicId,
-                  clinicName: assocPopover.clinic.clinicName,
-                })}
-              />
-            </FooterPill>
-          ) : assocPopover?.mode === 'add' ? (
-            <FooterPill>
-              <ActionButton
-                icon={Camera}
-                label={scanning ? 'Stop scan' : 'Scan QR'}
-                variant={scanning ? 'success' : 'default'}
-                onClick={handleToggleScan}
-              />
-              <ActionButton
-                icon={ImagePlus}
-                label="Upload"
-                onClick={handlePhotoUpload}
-              />
-            </FooterPill>
-          ) : undefined
-        }
-        rightFooter={
-          assocPopover?.mode === 'add' ? (
-            <FooterPill side="right">
-              <ActionButton
-                icon={Check}
-                label="Associate"
-                variant={!joinCode || assocSaving ? 'disabled' : 'confirm'}
-                onClick={() => redeemAssocCode(joinCode)}
-              />
-            </FooterPill>
-          ) : undefined
-        }
-      >
-        {assocPopover?.mode === 'info' && (
-          <div>
-            <div className="flex items-center justify-between border-b border-primary/6 px-4 py-3">
-              <FieldLabel className="w-20">UICs</FieldLabel>
-              <span className="text-sm text-primary truncate ml-3">{assocPopover.clinic.uics.join(', ') || '—'}</span>
-            </div>
-            <div className="flex items-center justify-between border-b border-primary/6 px-4 py-3">
-              <FieldLabel className="w-20">Location</FieldLabel>
-              <span className="text-sm text-primary truncate ml-3">{assocPopover.clinic.location || '—'}</span>
-            </div>
-            <div className="flex items-center justify-between gap-3 px-4 py-3">
-              <FieldLabel className="w-20">Code</FieldLabel>
-              {assocCodeLoading ? (
-                <Skeleton className="h-3 w-24 rounded-full" />
-              ) : assocCode ? (
-                <button
-                  type="button"
-                  onClick={handleCopyAssocCode}
-                  className="flex items-center gap-2 text-sm font-mono tracking-[0.15em] text-primary hover:text-themeblue3 active:scale-95 transition-all"
-                >
-                  <span>{assocCode}</span>
-                  <Copy size={14} />
-                </button>
-              ) : (
-                <span className="text-sm text-tertiary">—</span>
-              )}
-            </div>
-          </div>
-        )}
-        {assocPopover?.mode === 'add' && (
-          <div>
-            <div className="flex items-center border-b border-primary/6 px-4 py-3">
-              <FieldLabel className="w-20">Code</FieldLabel>
-              <input
-                type="text"
-                value={joinCode}
-                onChange={(e) =>
-                  setJoinCode(e.target.value.toUpperCase().replace(/[^0-9A-Z]/g, '').slice(0, 8))
-                }
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && joinCode.length > 0) redeemAssocCode(joinCode)
-                }}
-                placeholder="Enter invite code"
-                maxLength={8}
-                className="flex-1 bg-transparent font-mono tracking-[0.15em] text-primary placeholder:font-sans placeholder:tracking-normal placeholder:text-tertiary focus:outline-none text-sm min-w-0"
-              />
-            </div>
-
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handleFileChange}
-              className="hidden"
-            />
-
-            {scanning && (
-              <div className="px-4 py-3">
-                <div className="relative w-full aspect-4/3 rounded-lg overflow-hidden bg-black/5 border border-tertiary/10">
-                  <video
-                    ref={videoRef}
-                    className="absolute inset-0 w-full h-full object-cover"
-                    playsInline
-                    muted
-                  />
-                  {!isScanning && !scanError && (
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <p className="text-[10pt] text-tertiary">Starting camera…</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {(joinFeedback?.type === 'error' || scanError) && (
-              <div className="px-4 py-2">
-                <ErrorPill>{joinFeedback?.message || scanError}</ErrorPill>
-              </div>
-            )}
-          </div>
-        )}
-      </PreviewOverlay>
+      />
 
       <ConfirmDialog
         visible={!!confirmDisassociate}

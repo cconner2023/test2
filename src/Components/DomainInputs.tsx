@@ -110,9 +110,10 @@ function fitSlots(raw: string, slots: PinSlot[]): string {
  * backspace, paste and autofill are all native, and the next cell lights up as
  * the active one.
  */
-function CodePinInput({ slots, value, onChange, spread, label, placeholder, autoFocus, onComplete }: {
+function CodePinInput({ slots, value, base, onChange, spread, label, placeholder, autoFocus, onComplete }: {
   slots: PinSlot[]
   value: string
+  base?: string
   onChange: (v: string) => void
   spread?: boolean
   label?: string
@@ -139,11 +140,12 @@ function CodePinInput({ slots, value, onChange, spread, label, placeholder, auto
           {slots.map((_, i) => {
             const c = value[i]
             const active = focused && i === Math.min(value.length, n - 1)
+            const changed = base != null && c !== base[i]
             return (
               <span
                 key={i}
                 aria-hidden
-                className={`h-8 flex items-center justify-center rounded-md border text-base md:text-sm font-mono text-primary transition-colors ${active ? 'border-themeblue3' : c ? 'border-primary/30' : 'border-primary/15'} ${spread ? 'flex-1 min-w-0' : 'w-7'}`}
+                className={`h-8 flex items-center justify-center rounded-md border text-base md:text-sm font-mono text-primary transition-colors ${active ? 'border-themeblue3' : changed ? 'border-themeyellow/70' : c ? 'border-primary/30' : 'border-primary/15'} ${spread ? 'flex-1 min-w-0' : 'w-7'}`}
               >
                 {c ?? ''}
               </span>
@@ -183,8 +185,9 @@ export function UicPinInput({ value, onChange, spread, label, placeholder = 'UIC
   return <CodePinInput slots={UIC_SLOTS} value={value} onChange={onChange} spread={spread} label={label} placeholder={placeholder} />
 }
 
-export function BrnPinInput({ value, onChange, spread, label, placeholder = 'BRN', autoFocus, onComplete }: {
+export function BrnPinInput({ value, base, onChange, spread, label, placeholder = 'BRN', autoFocus, onComplete }: {
   value: string
+  base?: string
   onChange: (v: string) => void
   spread?: boolean
   label?: string
@@ -192,7 +195,7 @@ export function BrnPinInput({ value, onChange, spread, label, placeholder = 'BRN
   autoFocus?: boolean
   onComplete?: () => void
 }) {
-  return <CodePinInput slots={BRN_SLOTS} value={value} onChange={onChange} spread={spread} label={label} placeholder={placeholder} autoFocus={autoFocus} onComplete={onComplete} />
+  return <CodePinInput slots={BRN_SLOTS} value={value} base={base} onChange={onChange} spread={spread} label={label} placeholder={placeholder} autoFocus={autoFocus} onComplete={onComplete} />
 }
 
 /* ── Fuel Meter (vehicle fuel-level intake) ── */

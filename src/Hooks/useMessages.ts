@@ -83,8 +83,7 @@ import { ErrorCode } from '../lib/errorCodes'
 import { resizeImage, getImageDimensions, generateThumbnail, dataUrlToBlob } from '../Utilities/imageUtils'
 import type { VoiceRecordingResult } from '../Utilities/voiceUtils'
 import type { DecryptedSignalMessage, SyncMessagePayload } from '../lib/signal/transportTypes'
-import type { PublicKeyBundle } from '../lib/signal/types'
-import type { PeerBundleRpcResult } from '../lib/signal/transportTypes'
+import { rpcResultToBundle } from '../lib/clinicFanOut'
 import { useMessagingStore } from '../stores/useMessagingStore'
 
 const logger = createLogger('Messages')
@@ -133,22 +132,6 @@ export function getRequestStatus(
   }
   if (peerSentRequest) return 'received'
   return 'none'
-}
-
-/** Convert the RPC result shape to the PublicKeyBundle shape that session.ts expects. */
-function rpcResultToBundle(rpc: PeerBundleRpcResult): PublicKeyBundle {
-  return {
-    userId: rpc.userId,
-    deviceId: rpc.deviceId,
-    identitySigningKey: rpc.identitySigningKey,
-    identityDhKey: rpc.identityDhKey,
-    signedPreKey: {
-      keyId: rpc.signedPreKeyId,
-      publicKey: rpc.signedPreKey,
-      signature: rpc.signedPreKeySig,
-    },
-    oneTimePreKeys: rpc.oneTimePreKey ? [rpc.oneTimePreKey] : [],
-  }
 }
 
 /**

@@ -37,6 +37,7 @@ import { ErrorDisplay } from '@/Components/primitives/ErrorDisplay';
 import { supabase } from '../../lib/supabase';
 import { reEncryptVaultKeys } from '../../lib/signal/vaultDevice';
 import { copyText, copyImage } from '../../Utilities/clipboardUtils';
+import { downloadBlob } from '../../Utilities/downloadUtils';
 import { SettingsPage, SettingsColumn, TileGrid } from './SettingsPage';
 
 interface ProfilePageProps {
@@ -94,11 +95,14 @@ export const ProfilePage = ({
 
     // Share QR popover
     const shareCanvasElRef = useRef<HTMLCanvasElement | null>(null)
+    const shareBlobRef = useRef<Blob | null>(null)
     const sharePopoverCanvasRef = useCallback((canvas: HTMLCanvasElement | null) => {
         shareCanvasElRef.current = canvas
+        shareBlobRef.current = null
         if (!canvas || !user?.id) return
         try {
             bwipjs.toCanvas(canvas, { bcid: 'qrcode', text: user.id, scale: 8, padding: 4 })
+            canvas.toBlob((blob) => { if (shareCanvasElRef.current === canvas) shareBlobRef.current = blob }, 'image/png')
         } catch { /* non-critical */ }
     }, [user?.id])
 
@@ -110,10 +114,7 @@ export const ProfilePage = ({
     }, [])
 
     const handleShareImage = useCallback(() => {
-        const canvas = shareCanvasElRef.current
-        if (!canvas) return
-        canvas.toBlob(async (blob) => {
-            if (!blob) return
+        const shareIdBlob = async (blob: Blob) => {
             const filename = 'medical-ops-id-qr.png'
             const file = new File([blob], filename, { type: 'image/png' })
             try {
@@ -121,17 +122,17 @@ export const ProfilePage = ({
                     await navigator.share({ files: [file], title: 'Medical Operations ID' })
                     return
                 }
-            } catch { /* user cancelled — fall through */ }
+            } catch (err) {
+                if ((err as DOMException)?.name === 'AbortError') return
+            }
             if (await copyImage(blob, 'QR image copied')) return
-            const url = URL.createObjectURL(blob)
-            const a = document.createElement('a')
-            a.href = url
-            a.download = filename
-            document.body.appendChild(a)
-            a.click()
-            document.body.removeChild(a)
-            URL.revokeObjectURL(url)
-        }, 'image/png')
+            downloadBlob(blob, filename)
+        }
+        const ready = shareBlobRef.current
+        if (ready) { void shareIdBlob(ready); return }
+        const canvas = shareCanvasElRef.current
+        if (!canvas) return
+        canvas.toBlob((blob) => { if (blob) void shareIdBlob(blob) }, 'image/png')
     }, [])
 
     const handleCopyId = useCallback(() => {

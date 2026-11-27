@@ -17,6 +17,9 @@ interface DrawerPushState {
     nextSeq: number
     pushDrawer: (id: string, side: DrawerSide, width: number) => number
     removeDrawer: (id: string) => void
+    mobilePanels: string[]
+    openMobilePanel: (id: string) => void
+    closeMobilePanel: (id: string) => void
 }
 
 /** Signed distance a drawer pushes what's beneath it, in app-panel widths. */
@@ -39,4 +42,7 @@ export const useDrawerPushStore = create<DrawerPushState>((set, get) => ({
         return seq
     },
     removeDrawer: (id) => set((s) => ({ stack: s.stack.filter((d) => d.id !== id) })),
+    mobilePanels: [],
+    openMobilePanel: (id) => set((s) => ({ mobilePanels: [...s.mobilePanels.filter((p) => p !== id), id] })),
+    closeMobilePanel: (id) => set((s) => ({ mobilePanels: s.mobilePanels.filter((p) => p !== id) })),
 }))

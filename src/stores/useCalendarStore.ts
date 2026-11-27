@@ -3,6 +3,7 @@ import { isTrackingEvent, type CalendarEvent, type EventCategory, type CategoryC
 import type { SubClusterFilter } from '../Utilities/subCluster'
 import { putCalendarEvent, deleteCalendarEvent, addCalendarTombstone } from '../lib/calendarEventStore'
 import { createLogger } from '../Utilities/Logger'
+import { toDateKey } from '../Utilities/dates'
 
 const logger = createLogger('CalendarPersist')
 
@@ -219,7 +220,7 @@ const calendarPersist = (
 
 export const useCalendarStore = create<CalendarStore>()(calendarPersist((set) => ({
   currentView: 'month',
-  selectedDate: new Date().toISOString().slice(0, 10),
+  selectedDate: toDateKey(new Date()),
   selectedEventId: null,
   editingEventId: null,
   showEventForm: false,

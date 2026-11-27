@@ -26,6 +26,7 @@ export interface SwipeSide {
   icon: LucideIcon
   /** Tailwind bg class for the reveal panel. */
   panel: string
+  danger?: boolean
   /** Receives the row's rect (a `menu` binding anchors the LiftedRowMenu to it). */
   onFire: (rect: DOMRect) => void
 }
@@ -42,13 +43,15 @@ interface SwipeActionRowProps {
   className?: string
   /** Content surface bg (covers the reveal at rest). Default `bg-themewhite2`. */
   surfaceClassName?: string
+  reveal?: 'panel' | 'chip'
   children: ReactNode
 }
 
 export function SwipeActionRow({
   ltr, rtl, onClick, onLongPress, longPressMs = 400,
-  className = '', surfaceClassName = 'bg-themewhite2', children,
+  className = '', surfaceClassName = 'bg-themewhite2', reveal: revealMode = 'panel', children,
 }: SwipeActionRowProps) {
+  const chip = revealMode === 'chip'
   const wrapRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
   const leftRef = useRef<HTMLDivElement>(null)
@@ -69,12 +72,24 @@ export function SwipeActionRow({
     if (rightRef.current) rightRef.current.style.opacity = side === 'right' ? '1' : '0'
   }
 
+  const setChips = (dx: number, animate: boolean) => {
+    const set = (el: HTMLDivElement | null, p: number) => {
+      if (!el) return
+      el.style.transition = animate ? 'opacity 200ms ease-out, transform 200ms ease-out' : 'none'
+      el.style.opacity = String(p)
+      el.style.transform = `translateY(-50%) scale(${p})`
+    }
+    set(leftRef.current, Math.min(1, Math.max(0, dx) / SWIPE_THRESHOLD))
+    set(rightRef.current, Math.min(1, Math.max(0, -dx) / SWIPE_THRESHOLD))
+  }
+
   const snap = () => {
     const el = contentRef.current
     if (!el) return
     el.style.transition = 'transform 0.2s ease-out'
     el.style.transform = 'translateX(0)'
-    hideTimer.current = setTimeout(() => showReveal(null), 200)
+    if (chip) setChips(0, true)
+    else hideTimer.current = setTimeout(() => showReveal(null), 200)
   }
 
   const cancelPress = () => {
@@ -117,12 +132,13 @@ export function SwipeActionRow({
       consumed.current = true
     }
     const side = dx > 0 ? ltr : rtl
-    showReveal(side ? (dx > 0 ? 'left' : 'right') : null)
+    if (!chip) showReveal(side ? (dx > 0 ? 'left' : 'right') : null)
     // Bound side travels to SWIPE_MAX; an unbound side rubber-bands a hair.
     const offset = side
       ? Math.max(-SWIPE_MAX, Math.min(SWIPE_MAX, dx))
       : Math.max(-8, Math.min(8, dx * 0.1))
     setX(offset)
+    if (chip) setChips(side ? offset : 0, false)
   }
 
   const onTouchEnd = (e: React.TouchEvent) => {
@@ -141,6 +157,19 @@ export function SwipeActionRow({
   const reveal = (side: SwipeSide | null | undefined, ref: React.RefObject<HTMLDivElement | null>, align: 'left' | 'right') => {
     if (!side) return null
     const Icon = side.icon
+    if (chip) {
+      return (
+        <div
+          ref={ref}
+          aria-hidden
+          style={{ opacity: 0, transform: 'translateY(-50%) scale(0)' }}
+          className={`absolute top-1/2 ${align === 'left' ? 'left-3' : 'right-3'} w-7 h-7 rounded-full flex items-center justify-center pointer-events-none
+            ${side.danger ? 'bg-themeredred/15 text-themeredred' : 'bg-themeblue2/15 text-themeblue2'}`}
+        >
+          <Icon size={14} />
+        </div>
+      )
+    }
     return (
       <div
         ref={ref}
@@ -154,7 +183,7 @@ export function SwipeActionRow({
   }
 
   return (
-    <div ref={wrapRef} data-swipe-row className={`relative overflow-hidden ${className}`}>
+    <div ref={wrapRef} data-swipe-row className={`relative ${chip ? '' : 'overflow-hidden'} ${className}`}>
       {reveal(ltr, leftRef, 'left')}
       {reveal(rtl, rightRef, 'right')}
       <div

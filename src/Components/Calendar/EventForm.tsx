@@ -4,7 +4,7 @@ import { EquipmentPicker } from './EquipmentPicker'
 import { PersonnelPicker } from './PersonnelPicker'
 import type { EventFormData, EventCategory, EventStatus } from '../../Types/CalendarTypes'
 import { EventTasksCard } from './EventTasksCard'
-import { createEmptyFormData, EVENT_CATEGORIES, MILITARY_TIME_OPTIONS, militaryToHHMM, hhmmToMilitary, CATEGORY_SWATCH_IDS, CATEGORY_SWATCHES } from '../../Types/CalendarTypes'
+import { createEmptyFormData, EVENT_CATEGORIES, MILITARY_TIME_OPTIONS, militaryToHHMM, hhmmToMilitary, CATEGORY_SWATCH_IDS, CATEGORY_SWATCHES, toDateKey } from '../../Types/CalendarTypes'
 import { useCategoryColors } from '../../Hooks/useCategoryColors'
 import { TextInput, TextArea, PickerInput, DatePickerInput, TimeInput } from '@/Components/primitives/FormInputs'
 import { Chip, ChipBar } from '@/Components/primitives/Chip'
@@ -158,12 +158,12 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
     }, [form.end_time, updateField])
 
     const handleStartTimeChange = useCallback((mil: string) => {
-      const date = form.start_time.slice(0, 10) || new Date().toISOString().slice(0, 10)
+      const date = form.start_time.slice(0, 10) || toDateKey(new Date())
       updateField('start_time', `${date}T${militaryToHHMM(mil)}`)
     }, [form.start_time, updateField])
 
     const handleEndTimeChange = useCallback((mil: string) => {
-      const date = form.end_time.slice(0, 10) || new Date().toISOString().slice(0, 10)
+      const date = form.end_time.slice(0, 10) || toDateKey(new Date())
       updateField('end_time', `${date}T${militaryToHHMM(mil)}`)
     }, [form.end_time, updateField])
 

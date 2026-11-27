@@ -225,6 +225,7 @@ interface BaseDrawerProps {
      *  dismiss threshold snaps back to peek instead of closing. The only path
      *  to onClose is the X button. Requires `peekPosition` to be set. */
     noDragDismiss?: boolean;
+    mobilePanel?: boolean;
 }
 
 export function BaseDrawer({
@@ -250,6 +251,7 @@ export function BaseDrawer({
     lockPosition = false,
     peekPosition,
     noDragDismiss = false,
+    mobilePanel = false,
 }: BaseDrawerProps) {
     const restPosition = peekPosition ?? initialPosition;
     const dragMin = peekPosition !== undefined ? Math.max(10, peekPosition) : 20;
@@ -281,6 +283,8 @@ export function BaseDrawer({
     }, [scrollResetKey]);
 
     const useMobileLayout = mobileOnly || isMobile;
+    const panelMode = mobilePanel && useMobileLayout;
+    const fullScreen = mobileFullScreen || mobilePanel;
 
     // Desktop push: register before paint so an entering drawer's first frame
     // already sits off its own edge.
@@ -296,6 +300,13 @@ export function BaseDrawer({
         pushSeq.current = pushDrawer(drawerId, desktopPosition, panelWidth);
         return () => removeDrawer(drawerId);
     }, [pushing, drawerId, desktopPosition, panelWidth]);
+
+    useLayoutEffect(() => {
+        if (!panelMode || !isVisible) return;
+        const { openMobilePanel, closeMobilePanel } = useDrawerPushStore.getState();
+        openMobilePanel(drawerId);
+        return () => closeMobilePanel(drawerId);
+    }, [panelMode, isVisible, drawerId]);
 
     const stackIndex = stack.findIndex((d) => d.id === drawerId);
     const drawersAbove = stackIndex >= 0 ? stack.slice(stackIndex + 1) : [];
@@ -432,7 +443,7 @@ export function BaseDrawer({
             }
         },
         {
-            enabled: !disableDrag && !(useMobileLayout && mobileFullScreen),
+            enabled: !disableDrag && !(useMobileLayout && fullScreen),
             axis: 'y',
             filterTaps: true,
             pointer: { touch: true },
@@ -450,7 +461,7 @@ export function BaseDrawer({
 
     // Stable close handler that always dispatches to the current layout's handler
     const closeHandlerRef = useRef(mobileHandleClose);
-    closeHandlerRef.current = useMobileLayout ? mobileHandleClose : desktopHandleClose;
+    closeHandlerRef.current = useMobileLayout && !panelMode ? mobileHandleClose : desktopHandleClose;
     const handleClose = useCallback(() => { closeHandlerRef.current(); }, []);
 
     // Resolve children ONCE — single React tree, no duplicate component instances
@@ -458,7 +469,7 @@ export function BaseDrawer({
         ? (children as DrawerRenderProp)(handleClose)
         : children;
 
-    const mobileHeight = mobileFullScreen ? '100dvh' : fullHeight;
+    const mobileHeight = fullScreen ? '100dvh' : fullHeight;
 
     if (!isMounted && !isVisible) return null;
 
@@ -482,7 +493,7 @@ export function BaseDrawer({
                 <Scrim
                     progress={drawerPosition / 100}
                     zIndexClass={zIndex}
-                    transition={isDragging ? 'none' : 'opacity 300ms ease-out'}
+                    transition={panelMode ? DRAWER_FADE_TRANSITION : isDragging ? 'none' : 'opacity 300ms ease-out'}
                     onClick={handleClose}
                 />
             )}
@@ -492,7 +503,7 @@ export function BaseDrawer({
                 the same transition as the root left-nav. */}
             <div
                 className={useMobileLayout
-                    ? `fixed ${mobileFloating ? 'left-3 right-3' : 'left-0 right-0'} ${zIndex} bg-themewhite ${isDragging ? '' : 'transition-all duration-300 ease-out'} ${mobileClassName} ${header ? 'flex flex-col' : ''}`
+                    ? `fixed ${mobileFloating ? 'left-3 right-3' : 'left-0 right-0'} ${zIndex} bg-themewhite ${isDragging || panelMode ? '' : 'transition-all duration-300 ease-out'} ${mobileClassName} ${header ? 'flex flex-col' : ''}`
                     : `absolute inset-y-0 ${isHalf ? halfClass : 'inset-x-0'} ${panelZIndex} flex flex-col bg-themewhite transform-gpu overflow-hidden text-primary text-sm`
                 }
                 style={useMobileLayout ? {
@@ -500,13 +511,14 @@ export function BaseDrawer({
                     maxHeight: mobileHeight,
                     width: mobileFloating ? undefined : '100%',
                     bottom: mobileFloating ? 12 : 0,
-                    transform: `translateY(${100 - drawerPosition}%)`,
-                    opacity: Math.min(1, drawerPosition / Math.max(10, restPosition)),
-                    borderRadius: mobileFloating ? '1.25rem' : (mobileFullScreen ? '0' : '1.25rem 1.25rem 0 0'),
+                    transform: panelMode ? `translateX(${100 - drawerPosition}%)` : `translateY(${100 - drawerPosition}%)`,
+                    transition: panelMode ? DRAWER_SLIDE_TRANSITION : undefined,
+                    opacity: panelMode ? 1 : Math.min(1, drawerPosition / Math.max(10, restPosition)),
+                    borderRadius: mobileFloating ? '1.25rem' : (fullScreen ? '0' : '1.25rem 1.25rem 0 0'),
                     willChange: isDragging ? 'transform' : 'auto',
                     boxShadow: mobileFloating
                         ? '0 4px 30px rgba(0, 0, 0, 0.12)'
-                        : (mobileFullScreen ? 'none' : '0 -4px 20px rgba(0, 0, 0, 0.1)'),
+                        : (fullScreen ? 'none' : '0 -4px 20px rgba(0, 0, 0, 0.1)'),
                     overflow: 'hidden',
                     visibility: isMounted ? 'visible' : 'hidden',
                     ...(glassHeader ? { ['--drawer-header-h' as string]: `${headerHeight}px` } : {}),
@@ -549,7 +561,7 @@ export function BaseDrawer({
                                 onClose={handleClose}
                                 isMobile={useMobileLayout}
                                 headerFaded={headerFaded}
-                                mobileFullScreen={mobileFullScreen && useMobileLayout}
+                                mobileFullScreen={fullScreen && useMobileLayout}
                                 glass={glassHeader}
                             />
                         </div>

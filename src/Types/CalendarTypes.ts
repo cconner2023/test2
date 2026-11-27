@@ -6,6 +6,9 @@ export type EventStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled'
 import type { LinkedFeatureRef, ResourceAllocation, StructuredLocation } from './MissionTypes'
 import type { MedevacRequest } from './MedevacTypes'
 import type { TrackingData } from './TrackingTypes'
+import { toDateKey, toLocalISOString } from '../Utilities/dates'
+
+export { toDateKey, toLocalISOString, militaryToHHMM, hhmmToMilitary } from '../Utilities/dates'
 
 /** Tracking Board record (hidden from every calendar surface). */
 export const isTrackingEvent = (e: Pick<CalendarEvent, 'tracking_data'>): boolean => !!e.tracking_data
@@ -349,31 +352,12 @@ export function eventToFormData(event: CalendarEvent): EventFormData {
   }
 }
 
-export function toLocalISOString(date: Date): string {
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
-}
-
-/** "0630" → "06:30" — military to datetime-local time string */
-export function militaryToHHMM(mil: string): string {
-  return `${mil.slice(0, 2)}:${mil.slice(2)}`
-}
-
-/** "06:30" → "0630" — datetime-local time to military display */
-export function hhmmToMilitary(hhmm: string): string {
-  return hhmm.replace(':', '')
-}
-
 /** 30-min military options: "0000", "0030", … "2330" */
 export const MILITARY_TIME_OPTIONS: readonly string[] = Array.from({ length: 48 }, (_, i) => {
   const h = String(Math.floor(i / 2)).padStart(2, '0')
   const m = i % 2 === 0 ? '00' : '30'
   return `${h}${m}`
 })
-
-export function toDateKey(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
 
 /** "Mon, Mar 22" — short weekday + short month + day, en-US. */
 export function formatShortDayLabel(d: Date): string {

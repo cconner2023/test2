@@ -27,6 +27,7 @@ import type {
   MedRoute,
 } from '../Types/TC3Types'
 import { getBodyRegion, getRegionLabel } from '../Utilities/bodyRegionMap'
+import { toLocalISOString } from '../Utilities/dates'
 import {
   saveActiveCard,
   loadActiveCard,
@@ -40,8 +41,7 @@ import {
 // ── Helpers ──────────────────────────────────────────────────────────────
 
 function nowISO16(): string {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}T${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+  return toLocalISOString(new Date())
 }
 
 function nowHHMM(): string {

@@ -1,6 +1,6 @@
-import { createContext, useContext, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { UnderlineTabs } from '@/Components/primitives/UnderlineTabs'
-import { ArrowRightLeft, ArrowRight, CircleCheck, Eye, Trash2, Ban, Pencil, Navigation, MapPinCheck, MapPin, X, ArrowUp, Plus, Copy } from 'lucide-react'
+import { ArrowRightLeft, ArrowRight, CircleCheck, Trash2, Ban, Pencil, Navigation, MapPinCheck, MapPin, X, ArrowUp, Plus, Copy } from 'lucide-react'
 import { ListItemRow, RowMoreButton } from '@/Components/primitives/ListItemRow'
 import { ROW_META } from '@/Components/primitives/rowDensity'
 import { PersonnelGroupBand } from '@/Components/primitives/PersonnelRow'
@@ -15,7 +15,7 @@ import {
   TRACKING_SWIPE_POOL, useTrackingSwipeActions, setTrackingSwipeActions, type TrackingSwipeBinding,
 } from '../../Utilities/trackingSwipeActions'
 import { SectionCard, PageSectionHeader } from '@/Components/primitives/Section'
-import { TintedCard, TintedCardFoot, type CardTint } from '@/Components/primitives/TintedCard'
+import { MoreButton, type CardTint } from '@/Components/primitives/TintedCard'
 import { formatDtg } from '../../Utilities/propertyDates'
 import { ToggleSwitch } from '../Settings/ToggleSwitch'
 import { MessageBubble } from '../Settings/MessageBubble'
@@ -28,7 +28,7 @@ import type { DecryptedSignalMessage } from '../../lib/signal/transportTypes'
 import type { LinkedFeatureRef } from '../../Types/MissionTypes'
 import type { TrackingLink } from '../../Hooks/useTrackingBoardData'
 import {
-  clusterById, positionOf, sinceAt, placeKey, samePlace, stationLabel, placeLabel, originUic,
+  positionOf, sinceAt, placeKey, samePlace, stationLabel, placeLabel, originUic,
   destinationLabel, moveTargets, boardLayout, isComplete, isPending, COMPLETE,
   type TrackingEntry, type TrackingComment, type TrackingTarget, type TrackingNetwork, type BoardGroupDef,
   type TrackingEditDraft,
@@ -92,19 +92,8 @@ interface ListProps {
   entries: TrackingEntry[]
   now: number
   activeId: string | null
-  /** `origin` = the clicked card / row rect, for the overlay container transform. */
-  onSelect: (entry: TrackingEntry, origin?: CardOrigin) => void
-  /** Entry expanded into the overlay — its rail card is held invisible. */
-  expandedId?: string | null
+  onSelect: (entry: TrackingEntry) => void
 }
-
-/** Rest rect of a desktop rail card / grid row (null = not rendered). */
-export const measureRailCard = (id: string): DOMRect | null =>
-  document.querySelector<HTMLElement>(`[data-brn-rail="${CSS.escape(id)}"]`)?.getBoundingClientRect() ?? null
-export const measureGridRow = (id: string): DOMRect | null =>
-  document.querySelector<HTMLElement>(`[data-brn-row="${CSS.escape(id)}"]`)?.getBoundingClientRect() ?? null
-const rectOrigin = (r: DOMRect | null): CardOrigin | undefined =>
-  r ? { left: r.left, width: r.width, top: r.top, height: r.height, scale: 1 } : undefined
 
 // ── Desktop: main-pane overview grid (T2T idiom — BRN rows × place columns) ──
 
@@ -147,7 +136,7 @@ export function TrackingGrid({ entries, activeId, onSelect }: ListProps) {
               key={e.id}
               type="button"
               data-brn-row={e.id}
-              onClick={() => onSelect(e, rectOrigin(measureGridRow(e.id)))}
+              onClick={() => onSelect(e)}
               className="grid w-full text-left border-b border-primary/5"
               style={{ gridTemplateColumns: cols, height: ROW_HEIGHT }}
             >
@@ -204,9 +193,9 @@ export function boardGroups(net: TrackingNetwork, viewerId: string): BoardGroup[
 // Calendar personnel-filter idiom: collapsible PersonnelGroupBand per group,
 // condensed BRN cards (BrnRailCard) under it. No counts / dwell indicators.
 
-export function TrackingBoardList({ entries, activeId, onSelect, onEdit, onMove, onTransit, onDelete, expandedId }: ListProps & CardActions) {
+export function TrackingBoardList({ entries, activeId, onSelect, onMove, onTransit, onDelete }: ListProps & CardActions) {
   const { net, viewerId } = useBoardScope()
-  const cardMenu = useBrnCardMenu({ onSelect, onEdit, onMove, onTransit, onDelete }, measureRailCard, e => (
+  const cardMenu = useBrnCardMenu({ onSelect, onMove, onTransit, onDelete }, e => (
     <div className="rounded-xl bg-themewhite overflow-hidden"><BrnRailRow entry={e} /></div>
   ))
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set())
@@ -235,7 +224,6 @@ export function TrackingBoardList({ entries, activeId, onSelect, onEdit, onMove,
                     key={e.id}
                     entry={e}
                     active={activeId === e.id}
-                    hidden={expandedId === e.id}
                     onOpen={() => cardMenu.open(e)}
                     onMenu={rect => cardMenu.setMenu({ entry: e, rect, mode: 'all' })}
                   />
@@ -266,36 +254,11 @@ export function filterByCategory(entries: TrackingEntry[], cat: TrackingCategory
   return g ? entries.filter(g.match) : entries
 }
 
-/** Where the expanded overlay grows from: the card's rest column (left/width)
- *  plus its current visual top/height/scale — the rest card on tap, the lifted
- *  clone (scaled, raised) when opened from the long-press menu. */
-export interface CardOrigin {
-  left: number
-  width: number
-  top: number
-  /** Unscaled height. */
-  height: number
-  scale: number
-}
-
-const cardEl = (id: string) => document.querySelector<HTMLElement>(`[data-brn-card="${CSS.escape(id)}"]`)
-
-/** Rest rect of a list card (null = not rendered, e.g. filtered out / deleted). */
-export const measureBrnCard = (id: string): DOMRect | null => cardEl(id)?.getBoundingClientRect() ?? null
-
-/** Origin for an open: the lifted clone when the long-press menu is up, else the rest card. */
-function originFor(id: string, measure: (id: string) => DOMRect | null): CardOrigin | undefined {
-  const rest = measure(id)
-  if (!rest) return undefined
-  const v = document.querySelector<HTMLElement>('[data-lifted-clone]')?.getBoundingClientRect() ?? rest
-  const scale = v.width / rest.width || 1
-  return { left: rest.left, width: rest.width, top: v.top, height: v.height / scale, scale }
-}
+export const brnCardFace = (id: string) =>
+  document.querySelector<HTMLElement>(`[data-brn-card="${CSS.escape(id)}"] [data-card-face]`)
 
 interface CardActions {
-  onSelect: (entry: TrackingEntry, origin?: CardOrigin) => void
-  /** Open the BRN straight into its edit form. */
-  onEdit: (entry: TrackingEntry, origin?: CardOrigin) => void
+  onSelect: (entry: TrackingEntry) => void
   /** Move a BRN to a station its origin's chain shows, Pending (null) or Complete. */
   onMove: (entry: TrackingEntry, to: TrackingTarget) => void
   /** Set / clear (null) the "leaving → destination station" marker. */
@@ -306,14 +269,11 @@ interface CardActions {
 
 interface CardListProps extends CardActions {
   entries: TrackingEntry[]
-  /** Card currently expanded into the overlay — held invisible in the list so
-   *  the overlay reads as the card itself, not a copy. */
-  expandedId?: string | null
 }
 
 /** Swipe-binding display — shared by the card reveal and the settings picker. */
 export const TRACKING_SWIPE_DISPLAY: Record<TrackingSwipeBinding, SwipeBindingDisplay> = {
-  open: { label: 'Open', icon: Eye, panel: 'bg-themeblue2' },
+  open: { label: 'Edit', icon: Pencil, panel: 'bg-themeblue2' },
   move: { label: 'Move', icon: ArrowRightLeft, panel: 'bg-themeblue3' },
   delete: { label: 'Delete', icon: Trash2, panel: 'bg-themeredred' },
   off: { label: 'None', icon: Ban, panel: null },
@@ -337,35 +297,32 @@ export function tintFor(e: TrackingEntry): CardTint {
   if (isComplete(e)) return COMPLETE_TINT
   const p = positionOf(e)
   if (!p) return PENDING_TINT
-  // Hash of the place id — stable on every device and board, no lookup, and a
-  // place added later gets a color too.
+  return STATION_TINTS[tintIndex(p.feature_id)]
+}
+
+// Hash of the place id — stable on every device and board, no lookup, and a
+// place added later gets a color too.
+function tintIndex(featureId: string) {
   let h = 0
-  for (const ch of p.feature_id) h = (h * 31 + ch.charCodeAt(0)) | 0
-  return STATION_TINTS[Math.abs(h) % STATION_TINTS.length]
+  for (const ch of featureId) h = (h * 31 + ch.charCodeAt(0)) | 0
+  return Math.abs(h) % STATION_TINTS.length
 }
 
-/** Selected-BRN head line — BRN with the origin UIC beside it. `reserveRight`
- *  keeps the UIC clear of the overlay's absolute header pills. */
-export function BrnDetailTitle({ entry, reserveRight = false }: { entry: TrackingEntry; reserveRight?: boolean }) {
-  const { net } = useBoardScope()
-  const uic = originUic(net.clusters, entry)
-  return (
-    <p className={`flex items-baseline gap-2 min-w-0 leading-tight ${reserveRight ? 'pr-20' : ''}`}>
-      <span className="text-[16pt] font-mono font-bold tracking-wide text-primary truncate">{entry.brnLabel}</span>
-      {uic && <span className="text-[10pt] font-mono font-medium text-tertiary shrink-0">{uic}</span>}
-    </p>
-  )
+interface Accent { bg: string; border: string }
+const PENDING_ACCENT: Accent = { bg: 'bg-themegray1', border: 'border-themegray1' }
+const COMPLETE_ACCENT: Accent = { bg: 'bg-themegreen', border: 'border-themegreen' }
+const STATION_ACCENTS: Accent[] = [
+  { bg: 'bg-themeblue1', border: 'border-themeblue1' },
+  { bg: 'bg-themeyellow', border: 'border-themeyellow' },
+  { bg: 'bg-themeblue2', border: 'border-themeblue2' },
+  { bg: 'bg-themepurple', border: 'border-themepurple' },
+  { bg: 'bg-themered', border: 'border-themered' },
+]
+export function accentFor(e: TrackingEntry): Accent {
+  if (isComplete(e)) return COMPLETE_ACCENT
+  const p = positionOf(e)
+  return p ? STATION_ACCENTS[tintIndex(p.feature_id)] : PENDING_ACCENT
 }
-
-/** Selected-BRN sub line — the origin cluster's label (nickname / name).
- *  Location is left to History and the footer band. */
-export function BrnDetailLines({ entry }: { entry: TrackingEntry }) {
-  const { net } = useBoardScope()
-  const origin = clusterById(net.clusters, entry.originClinicId)?.label
-  return origin ? <p className="mt-0.5 text-[9pt] font-medium text-tertiary truncate">{origin}</p> : null
-}
-
-const latestNote = (e: TrackingEntry) => e.comments[e.comments.length - 1]?.text
 
 /** Footer parts: location (→ destination while in transit) · since / en-route stamp. */
 function useBrnFoot(entry: TrackingEntry) {
@@ -381,28 +338,39 @@ function useBrnFoot(entry: TrackingEntry) {
   return { left, right }
 }
 
-/** Selected-BRN footer band on the tint: location · origin (check-in) DTG. */
-export function BrnCardFoot({ entry }: { entry: TrackingEntry }) {
+
+export function BrnSheetHead({ entry, reserveRight = false }: { entry: TrackingEntry; reserveRight?: boolean }) {
+  const { net } = useBoardScope()
   const { left } = useBrnFoot(entry)
-  return <TintedCardFoot tint={tintFor(entry)} left={left} right={fmtDateTime(entry.checkedInAt)} />
+  const uic = originUic(net.clusters, entry)
+  const pad = reserveRight ? 'pr-32' : ''
+  return (
+    <>
+      <p className={`min-w-0 truncate leading-tight ${pad}`}>
+        <span className="text-[17pt] font-mono font-bold tracking-wide text-primary">{entry.brnLabel}</span>
+        {uic && <span className="text-[17pt] font-mono font-bold tracking-wide text-primary"> · {uic}</span>}
+      </p>
+      <p className={`mt-0.5 min-w-0 truncate text-[9.5pt] text-tertiary ${pad}`}>{left}</p>
+    </>
+  )
 }
 
-/** Card body — rendered in the list AND as the lifted clone in the menu, and
- *  the collapsed state of TrackingCardOverlay. Tinted shell → white inner card
- *  (BRN, UIC, latest note) → footer band (location) on the tint. */
 function BrnCard({ entry, onMore }: { entry: TrackingEntry; onMore?: (rect: DOMRect) => void }) {
   const { net } = useBoardScope()
-  const { left, right } = useBrnFoot(entry)
+  const { left } = useBrnFoot(entry)
+  const uic = originUic(net.clusters, entry)
+  const at = entry.transit ? entry.transit.at : sinceAt(entry)
   return (
-    <TintedCard
-      onMore={onMore}
-      tint={tintFor(entry)}
-      title={entry.brnLabel}
-      subtitle={originUic(net.clusters, entry)}
-      note={latestNote(entry)}
-      footLeft={left}
-      footRight={right}
-    />
+    <div data-card-face className="relative grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 rounded-2xl bg-themewhite2 py-3 pl-[18px] pr-3.5 overflow-hidden">
+      <span data-morph-fade className={`absolute inset-y-0 left-0 w-[5px] ${accentFor(entry).bg}`} />
+      <p className="min-w-0 truncate leading-tight">
+        <span className="text-[14pt] font-mono font-bold tracking-wide text-primary">{entry.brnLabel}</span>
+        {uic && <span className="ml-1.5 text-[9pt] font-mono font-medium text-tertiary">{uic}</span>}
+      </p>
+      {onMore ? <span data-morph-fade className="-my-1.5 -mr-1.5"><MoreButton onMore={onMore} compact={false} /></span> : <span />}
+      <p className="mt-0.5 min-w-0 text-[9.5pt] text-tertiary truncate">{left}</p>
+      <p data-morph-fade className="mt-0.5 text-[9pt] font-mono text-tertiary text-right">{fmtDateTime(at)}</p>
+    </div>
   )
 }
 
@@ -433,16 +401,14 @@ function BrnRailRow({ entry, active = false, onMore }: { entry: TrackingEntry; a
 
 /** Desktop rail row. Click opens the BRN PaneCard over the grid pane;
  *  right-click / long-press / ellipsis lifts it into the shared card menu. */
-function BrnRailCard({ entry, active, hidden, onOpen, onMenu }: {
+function BrnRailCard({ entry, active, onOpen, onMenu }: {
   entry: TrackingEntry
   active: boolean
-  /** Expanded into the overlay — held invisible so the overlay reads as the card. */
-  hidden: boolean
   onOpen: () => void
   onMenu: (rect: DOMRect) => void
 }) {
   return (
-    <div data-brn-rail={entry.id} className={hidden ? 'invisible' : undefined}>
+    <div data-brn-rail={entry.id}>
       <SwipeActionRow
         surfaceClassName="bg-themewhite"
         onClick={onOpen}
@@ -479,8 +445,7 @@ export function trackingTransitItems(e: TrackingEntry, onTransit: (entry: Tracki
 /** BRN action menu — shared by the card long-press, the mobile detail Sheet
  *  ellipsis and the desktop header ellipsis. `onOpen` omitted = already open. */
 export function buildTrackingMenuItems(e: TrackingEntry, h: {
-  onOpen?: (entry: TrackingEntry) => void
-  onEdit: (entry: TrackingEntry) => void
+  onEdit?: (entry: TrackingEntry) => void
   onMove: (entry: TrackingEntry, to: TrackingTarget) => void
   /** Set (or clear, null) the "leaving → destination station" marker. */
   onTransit: (entry: TrackingEntry, to: LinkedFeatureRef | null) => void
@@ -492,8 +457,7 @@ export function buildTrackingMenuItems(e: TrackingEntry, h: {
   // Complete = done moving; reopen through Move to… first.
   const sendTo = isComplete(e) ? [] : trackingTransitItems(e, h.onTransit, h.net, h.viewerId)
   return [
-    ...(h.onOpen ? [{ key: 'open', label: 'Open', icon: Eye, onAction: () => h.onOpen!(e) }] : []),
-    { key: 'edit', label: 'Edit', icon: Pencil, onAction: () => h.onEdit(e) },
+    ...(h.onEdit ? [{ key: 'edit', label: 'Edit', icon: Pencil, onAction: () => h.onEdit!(e) }] : []),
     { key: 'move', label: 'Move to…', icon: ArrowRightLeft, submenu: trackingMoveItems(e, h.onMove, h.net, h.viewerId) },
     // In transit: land them (move to the destination) or call it off.
     ...(t ? [
@@ -508,11 +472,10 @@ export function buildTrackingMenuItems(e: TrackingEntry, h: {
 /**
  * Right-click / long-press card menu: the LiftedRowMenu over a clone of the card
  * plus its delete confirm. Shared by the mobile cards and the desktop rail.
- * `measure` = the card's rest rect; `row` = the lifted clone.
+ * `row` = the lifted clone.
  */
 function useBrnCardMenu(
-  { onSelect, onEdit, onMove, onTransit, onDelete }: CardActions,
-  measure: (id: string) => DOMRect | null,
+  { onSelect, onMove, onTransit, onDelete }: CardActions,
   row: (entry: TrackingEntry) => ReactNode,
 ) {
   const { net, viewerId } = useBoardScope()
@@ -520,12 +483,9 @@ function useBrnCardMenu(
   const [menu, setMenu] = useState<{ entry: TrackingEntry; rect: DOMRect; mode: 'all' | 'move' } | null>(null)
   const [pendingDelete, setPendingDelete] = useState<TrackingEntry | null>(null)
 
-  // Open / Edit from the lifted menu grow out of the lifted clone (still mounted
-  // when onAction fires); tap / swipe-open grow out of the rest card.
-  const open = (e: TrackingEntry) => onSelect(e, originFor(e.id, measure))
-  const edit = (e: TrackingEntry) => onEdit(e, originFor(e.id, measure))
+  const open = (e: TrackingEntry) => onSelect(e)
   const moveItems = (e: TrackingEntry) => trackingMoveItems(e, onMove, net, viewerId)
-  const menuItems = (e: TrackingEntry) => buildTrackingMenuItems(e, { onOpen: open, onEdit: edit, onMove, onTransit, onDelete: setPendingDelete, net, viewerId })
+  const menuItems = (e: TrackingEntry) => buildTrackingMenuItems(e, { onMove, onTransit, onDelete: setPendingDelete, net, viewerId })
 
   const surfaces = (
     <>
@@ -554,15 +514,13 @@ function useBrnCardMenu(
 
 /**
  * BRN cards with the chat gesture set (SwipeActionRow): tap opens, long-press /
- * right-click lifts the card into the LiftedRowMenu (Open / Move to… /
+ * right-click lifts the card into the LiftedRowMenu (Move to… /
  * Delete); swipe left/right fire the user's Tracking swipe bindings (same set,
  * picked in board settings via Messaging's picker).
  */
-export function TrackingCardList({ entries, onSelect, onEdit, onMove, onTransit, onDelete, expandedId }: CardListProps) {
+export function TrackingCardList({ entries, onSelect, onMove, onTransit, onDelete }: CardListProps) {
   const swipe = useTrackingSwipeActions()
-  const cardMenu = useBrnCardMenu({ onSelect, onEdit, onMove, onTransit, onDelete }, measureBrnCard, e => (
-    <div className="rounded-2xl bg-themewhite2 overflow-hidden"><BrnCard entry={e} /></div>
-  ))
+  const cardMenu = useBrnCardMenu({ onSelect, onMove, onTransit, onDelete }, e => <BrnCard entry={e} />)
 
   const fire = (b: TrackingSwipeBinding, e: TrackingEntry, rect: DOMRect) => {
     if (b === 'open') cardMenu.open(e)
@@ -572,15 +530,17 @@ export function TrackingCardList({ entries, onSelect, onEdit, onMove, onTransit,
 
   const sideFor = (b: TrackingSwipeBinding, e: TrackingEntry): SwipeSide | null => {
     const d = TRACKING_SWIPE_DISPLAY[b]
-    return d.panel ? { icon: d.icon, panel: d.panel, onFire: rect => fire(b, e, rect) } : null
+    return d.panel ? { icon: d.icon, panel: d.panel, danger: b === 'delete', onFire: rect => fire(b, e, rect) } : null
   }
 
   return (
-    <div className="px-3 pb-8 space-y-3">
+    <div className="px-3 pb-8 space-y-2 overflow-x-clip">
       {entries.map(e => (
-        <div key={e.id} data-brn-card={e.id} className={expandedId === e.id ? 'invisible' : undefined}>
+        <div key={e.id} data-brn-card={e.id}>
           <SwipeActionRow
+            reveal="chip"
             className="rounded-2xl"
+            surfaceClassName="rounded-2xl"
             ltr={sideFor(swipe.ltr, e)}
             rtl={sideFor(swipe.rtl, e)}
             onClick={() => cardMenu.open(e)}
@@ -722,6 +682,10 @@ export const draftFromEntry = (e: TrackingEntry): TrackingEditDraft => ({
 
 export const draftIsValid = (d: TrackingEditDraft) => BRN_PATTERN.test(d.brn)
 
+export const draftIsDirty = (d: TrackingEditDraft, e: TrackingEntry) =>
+  d.brn !== e.brn || (d.added?.length ?? 0) > 0 || !!d.staged || !!d.newComment.trim()
+  || d.comments.some(c => c.removed || c.text !== e.comments.find(x => x.id === c.id)?.text)
+
 /** Check-in — self-rowing primitives straight in the PreviewOverlay card
  *  (no section chrome); Check in rides the surface header. */
 export function TrackingCheckInFields({ draft, onChange }: {
@@ -743,7 +707,7 @@ type StagedAttachment = NonNullable<TrackingComment['attachment']>
 /** Chat composer (ChatDetailView idiom): + | input | send. No voice. Send
  *  appends to draft.added; unsent text and a finished upload (newComment /
  *  staged) still go with the header Save. */
-function CommentComposer({ draft, onChange }: {
+export function CommentComposer({ draft, onChange }: {
   draft: TrackingEditDraft
   onChange: (d: TrackingEditDraft) => void
 }) {
@@ -898,17 +862,15 @@ export function TrackingEditForm({ entry, draft, onChange }: {
 }) {
   return (
     <div className="space-y-4">
-      <section>
-        <PageSectionHeader>BRN</PageSectionHeader>
-        <SectionCard>
-          <BrnPinInput
-            value={draft.brn}
-            onChange={brn => onChange({ ...draft, brn })}
-            spread
-            autoFocus={!entry}
-          />
-        </SectionCard>
-      </section>
+      <SectionCard>
+        <BrnPinInput
+          value={draft.brn}
+          base={entry?.brn}
+          onChange={brn => onChange({ ...draft, brn })}
+          spread
+          autoFocus={!entry}
+        />
+      </SectionCard>
 
       <section>
         <PageSectionHeader>Activity</PageSectionHeader>
@@ -918,12 +880,39 @@ export function TrackingEditForm({ entry, draft, onChange }: {
   )
 }
 
+export function TrackingSheetForm({ entry, draft, onChange }: {
+  entry: TrackingEntry
+  draft: TrackingEditDraft
+  onChange: (d: TrackingEditDraft) => void
+}) {
+  const endRef = useRef<HTMLDivElement>(null)
+  const sent = draft.added?.length ?? 0
+  const sentRef = useRef(sent)
+  useEffect(() => {
+    if (sent > sentRef.current) endRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' })
+    sentRef.current = sent
+  }, [sent])
+  return (
+    <div className="space-y-4">
+      <SectionCard>
+        <BrnPinInput value={draft.brn} base={entry.brn} onChange={brn => onChange({ ...draft, brn })} spread />
+      </SectionCard>
+      <section>
+        <PageSectionHeader>Activity</PageSectionHeader>
+        <DraftConversation entry={entry} draft={draft} onChange={onChange} composer={false} />
+      </section>
+      <div ref={endRef} />
+    </div>
+  )
+}
+
 /** Thread (history + comments + sent-but-unsaved) over the composer, with the
  *  chat's bubble menu. Shared by Edit and check-in. */
-function DraftConversation({ entry, draft, onChange }: {
+function DraftConversation({ entry, draft, onChange, composer = true }: {
   entry?: TrackingEntry
   draft: TrackingEditDraft
   onChange: (d: TrackingEditDraft) => void
+  composer?: boolean
 }) {
   const me = useOwnStamp()
   const [menu, setMenu] = useState<{ key: string; x: number; y: number; rect?: DOMRect; cloneHtml?: string } | null>(null)
@@ -989,9 +978,11 @@ function DraftConversation({ entry, draft, onChange }: {
           onSaveEdit={saveEdit}
           onCancelEdit={() => setEditing(null)}
         />
-        <div className="mt-2">
-          <CommentComposer draft={draft} onChange={onChange} />
-        </div>
+        {composer && (
+          <div className="mt-2">
+            <CommentComposer draft={draft} onChange={onChange} />
+          </div>
+        )}
         {/* The chat's message menu: lifted bubble clone with the list beneath;
             cursor pill when no rect was captured. */}
         {menu && (menu.rect && menu.cloneHtml ? (
@@ -1010,13 +1001,6 @@ function DraftConversation({ entry, draft, onChange }: {
         ))}
     </>
   )
-}
-
-/** Detail — history and comments as one read-only conversation. All comment
- *  writes (add / change / remove) go through the form: check-in or ellipsis Edit. */
-export function TrackingBoardDetail({ entry }: { entry: TrackingEntry }) {
-  const { net } = useBoardScope()
-  return <CommentThread items={byTime([...historyItems(net, entry), ...entry.comments.map(c => commentItem(c))])} />
 }
 
 // ── Settings (mirrors Messaging settings: section header + card, in Sheet / PreviewOverlay) ──

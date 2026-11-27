@@ -1,7 +1,7 @@
 import { SkeletonRows } from '@/Components/primitives/Skeleton'
-import { useState, useCallback, useRef, useEffect } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { Radio, ChevronRight } from 'lucide-react'
-import { PreviewOverlay } from '../PreviewOverlay'
+import { PaneStack, type StackScreen } from '@/Components/primitives/PaneStack'
 import { SettingsRow } from './SettingsToggleRow'
 import { ToggleSwitch } from './ToggleSwitch'
 import { UserAvatar } from './UserAvatar'
@@ -44,11 +44,10 @@ export function LineOncallRow({
 }: Props) {
   const { medics } = useClinicMedics()
 
-  const [anchor, setAnchor] = useState<DOMRect | null>(null)
+  const [isOpen, setIsOpen] = useState(false)
   const [roster, setRoster] = useState<LineOncallRoster | null>(null)
   const [pending, setPending] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const rowRef = useRef<HTMLButtonElement | null>(null)
 
   // Server counts lead until the sheet has been opened; after that the sheet's own
   // roster is the fresher truth (the parent refetch may not have landed yet).
@@ -66,7 +65,7 @@ export function LineOncallRow({
 
   const open = useCallback(() => {
     setError(null)
-    if (rowRef.current) setAnchor(rowRef.current.getBoundingClientRect())
+    setIsOpen(true)
     void load()
   }, [load])
 
@@ -86,31 +85,10 @@ export function LineOncallRow({
     setPending(null)
   }, [roster, pending, load, onChanged])
 
-  return (
-    <>
-      <SettingsRow
-        ref={rowRef}
-        icon={Radio}
-        label={label}
-        subtitle={shownTotal === 0
-          ? 'No one in scope'
-          : `${shownOn} of ${shownTotal} on duty`}
-        on={shownOn > 0}
-        onColor="text-themegreen"
-        onBg="bg-themegreen/15"
-        onClick={open}
-        divided={divided}
-        indent={indent}
-        trailing={<ChevronRight size={16} className="text-tertiary shrink-0" />}
-      />
-
-      <PreviewOverlay
-        isOpen={!!anchor}
-        onClose={() => setAnchor(null)}
-        anchorRect={anchor}
-        title={label}
-        maxWidth={360}
-      >
+  const rosterScreens: Record<string, StackScreen> = {
+    roster: {
+      title: label,
+      render: () => (
         <div className="px-3 py-2">
           {error && <p className="text-[10pt] text-themeredred px-1 pb-2">{error}</p>}
 
@@ -158,7 +136,33 @@ export function LineOncallRow({
             )
           })}
         </div>
-      </PreviewOverlay>
+      ),
+    },
+  }
+
+  return (
+    <>
+      <SettingsRow
+        icon={Radio}
+        label={label}
+        subtitle={shownTotal === 0
+          ? 'No one in scope'
+          : `${shownOn} of ${shownTotal} on duty`}
+        on={shownOn > 0}
+        onColor="text-themegreen"
+        onBg="bg-themegreen/15"
+        onClick={open}
+        divided={divided}
+        indent={indent}
+        trailing={<ChevronRight size={16} className="text-tertiary shrink-0" />}
+      />
+
+      <PaneStack
+        isOpen={isOpen}
+        onClose={() => setIsOpen(false)}
+        initial={{ key: 'roster' }}
+        screens={rosterScreens}
+      />
     </>
   )
 }

@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react'
 import { Bell, Code, Info, Volume2, CalendarClock } from 'lucide-react'
 import { usePushNotifications } from '../../Hooks/usePushNotifications'
+import { usePushStore } from '../../stores/usePushStore'
 import { useUserProfile } from '../../Hooks/useUserProfile'
 import { useAuth } from '../../Hooks/useAuth'
 import { isMessageSoundsEnabled, setMessageSoundsEnabled } from '../../lib/soundService'
@@ -36,21 +37,21 @@ export const NotificationSettingsPanel = () => {
     setError('')
     const ok = await subscribe()
     if (!ok) {
-      showError(pushError || 'Could not enable notifications')
+      showError(usePushStore.getState().error || 'Could not enable notifications')
       return
     }
     showSuccess('Subscription created')
-  }, [subscribe, pushError, showSuccess, showError])
+  }, [subscribe, showSuccess, showError])
 
   const handleUnsubscribe = useCallback(async () => {
     setError('')
     const ok = await unsubscribe()
     if (!ok) {
-      showError(pushError || 'Could not remove subscription')
+      showError(usePushStore.getState().error || 'Could not remove subscription')
       return
     }
     showSuccess('Subscription removed')
-  }, [unsubscribe, pushError, showSuccess, showError])
+  }, [unsubscribe, showSuccess, showError])
 
   const handleDevAlertToggle = useCallback(async (newValue: boolean) => {
     setError('')
@@ -58,7 +59,7 @@ export const NotificationSettingsPanel = () => {
     if (newValue && !isSubscribed) {
       const ok = await subscribe()
       if (!ok) {
-        showError(pushError || 'Could not enable notifications')
+        showError(usePushStore.getState().error || 'Could not enable notifications')
         return
       }
     }
@@ -66,7 +67,7 @@ export const NotificationSettingsPanel = () => {
     updateProfile({ notifyDevAlerts: newValue })
     syncProfileField({ notify_dev_alerts: newValue })
     showSuccess(newValue ? 'Dev alerts enabled' : 'Dev alerts disabled')
-  }, [isSubscribed, subscribe, pushError, updateProfile, syncProfileField, showSuccess, showError])
+  }, [isSubscribed, subscribe, updateProfile, syncProfileField, showSuccess, showError])
 
   const handleCalendarAssignToggle = useCallback(async (newValue: boolean) => {
     setError('')
@@ -74,7 +75,7 @@ export const NotificationSettingsPanel = () => {
     if (newValue && !isSubscribed) {
       const ok = await subscribe()
       if (!ok) {
-        showError(pushError || 'Could not enable notifications')
+        showError(usePushStore.getState().error || 'Could not enable notifications')
         return
       }
     }
@@ -82,7 +83,7 @@ export const NotificationSettingsPanel = () => {
     updateProfile({ notifyCalendarAssignments: newValue })
     syncProfileField({ notify_calendar_assignments: newValue })
     showSuccess(newValue ? 'Event assignment alerts enabled' : 'Event assignment alerts disabled')
-  }, [isSubscribed, subscribe, pushError, updateProfile, syncProfileField, showSuccess, showError])
+  }, [isSubscribed, subscribe, updateProfile, syncProfileField, showSuccess, showError])
 
   const handleTrackingBoardToggle = useCallback(async (newValue: boolean) => {
     setError('')
@@ -90,7 +91,7 @@ export const NotificationSettingsPanel = () => {
     if (newValue && !isSubscribed) {
       const ok = await subscribe()
       if (!ok) {
-        showError(pushError || 'Could not enable notifications')
+        showError(usePushStore.getState().error || 'Could not enable notifications')
         return
       }
     }
@@ -98,7 +99,7 @@ export const NotificationSettingsPanel = () => {
     updateProfile({ notifyTrackingBoard: newValue })
     syncProfileField({ notify_tracking_board: newValue })
     showSuccess(newValue ? 'Tracking board alerts enabled' : 'Tracking board alerts disabled')
-  }, [isSubscribed, subscribe, pushError, updateProfile, syncProfileField, showSuccess, showError])
+  }, [isSubscribed, subscribe, updateProfile, syncProfileField, showSuccess, showError])
 
   return (
     <div className="h-full overflow-y-auto">

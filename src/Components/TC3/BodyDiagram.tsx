@@ -6,6 +6,7 @@ import { TC3EditorSurface } from './TC3EditorSurface'
 import { MarkerPopover } from './MarkerPopover'
 import { getRegionLabel } from '../../Utilities/bodyRegionMap'
 import type { TC3Marker, InjuryType } from '../../Types/TC3Types'
+import { toLocalISOString } from '../../Utilities/dates'
 
 /* ── Constants ────────────────────────────────────────────────────────────── */
 
@@ -30,7 +31,7 @@ function nowISO16(): string {
   // Snap minutes to the nearest 30 so the value matches a marker time option
   // (the picker only renders a value that exactly matches an option).
   d.setMinutes(d.getMinutes() < 15 ? 0 : d.getMinutes() < 45 ? 30 : 60, 0, 0)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}T${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+  return toLocalISOString(d)
 }
 
 /* ── BodyDiagram ─────────────────────────────────────────────────────────── */

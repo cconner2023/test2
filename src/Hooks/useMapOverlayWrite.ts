@@ -309,8 +309,6 @@ export function useMapOverlayWrite(): UseMapOverlayWriteResult {
       if (!originId) {
         // Fan-out failed — queue for retry on next online.
         await queuePendingOverlaySend(payload)
-      } else {
-        await clearPendingOverlaySend(overlay.id)
       }
 
       invalidate('mapOverlays')

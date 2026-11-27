@@ -12,6 +12,8 @@
  * subtask label.
  */
 
+import { formatDtgTime as toDtg } from '../../Utilities/dates'
+
 const PAGE_W = 792 // US Letter landscape, points
 const PAGE_H = 612
 const MARGIN = 36
@@ -28,16 +30,6 @@ const FONT_DTG = 10
 const FONT_SECTION = 10
 const FONT_BODY = 10
 const FONT_FOOTER = 8
-
-const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
-
-/** Military date-time group in local time, e.g. 210010JUN26 (DDHHMM + MON + YY). */
-function toDtg(iso: string): string {
-  const d = new Date(iso)
-  if (isNaN(d.getTime())) return '—'
-  const p2 = (n: number) => String(n).padStart(2, '0')
-  return `${p2(d.getDate())}${p2(d.getHours())}${p2(d.getMinutes())}${MONTHS[d.getMonth()]}${p2(d.getFullYear() % 100)}`
-}
 
 export interface ConopSubtask {
   label: string

@@ -91,7 +91,6 @@ export function useTrackingWrite(): UseTrackingWriteResult {
     const originId = await sendEvent('c', stamped, fanTo)
     if (originId) {
       useCalendarStore.getState().updateEvent(stamped.id, { originId })
-      clearPendingVaultSend(stamped.id).catch(() => {})
     } else {
       // Offline / fan-out failure — the calendar vault drain re-sends on reconnect.
       queuePendingVaultSend(stamped).catch(() => {})

@@ -34,7 +34,7 @@ export interface UseCalendarWriteResult {
    * Sets isWriting=true for the duration — caller shows loading overlay.
    * Handles create (event not yet in store) and update (event already exists).
    */
-  writeEvent: (event: CalendarEvent) => Promise<void>
+  writeEvent: (event: CalendarEvent) => Promise<boolean>
 
   /**
    * Fire-and-forget vault update for paths where the store has already been
@@ -72,7 +72,7 @@ export function useCalendarWrite(): UseCalendarWriteResult {
     relinkCompletionsByOriginId(oldOriginId, newOriginId, userId).catch(() => {})
   }, [userId])
 
-  const writeEvent = useCallback(async (event: CalendarEvent): Promise<void> => {
+  const writeEvent = useCallback(async (event: CalendarEvent): Promise<boolean> => {
     const store = useCalendarStore.getState()
     const existing = store.events.find(e => e.id === event.id)
     const oldOriginId = existing?.originId ?? null
@@ -122,6 +122,7 @@ export function useCalendarWrite(): UseCalendarWriteResult {
       if (newlyAssigned.length > 0) {
         fireNotification({ type: 'calendar_assignment', user_ids: newlyAssigned, author_id: userId ?? undefined })
       }
+      return !!originId
     } catch (e) {
       logger.warn('writeEvent failed, committing without originId:', e)
       if (existing) {
@@ -129,6 +130,7 @@ export function useCalendarWrite(): UseCalendarWriteResult {
       } else {
         useCalendarStore.getState().addEvent(event)
       }
+      return false
     } finally {
       setIsWriting(false)
     }

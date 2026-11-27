@@ -802,7 +802,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
       desktopPosition="left"
       isVisible={isVisible}
       onClose={handleClose}
-      fullHeight="90dvh"
+      mobilePanel
       header={headerConfig}
       scrollDisabled
       glassHeader={isMobile}

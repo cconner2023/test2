@@ -1,20 +1,12 @@
 import type { LocalPropertyItem, LocalPropertyLocation, ItemType, UnitOfIssue } from '../Types/PropertyTypes'
 import type { OrderLine } from './propertyShortage'
 import { isLinContainer, isZoneShadow } from './propertyAuthorized'
-import { neutralizeCsvFormula, restoreCsvFormula } from './csvSafe'
+import { csvCell, restoreCsvFormula } from './csvSafe'
+import { downloadCSVString } from './downloadUtils'
+import { toDateKey } from './dates'
 
 const ITEM_TYPES: ItemType[] = ['CI', 'DI', 'SI']
 const UNITS_OF_ISSUE: UnitOfIssue[] = ['EA', 'SET', 'PR', 'BOT', 'PK', 'TUB']
-
-// ── CSV Escaping ────────────────────────────────────────────
-
-function escapeCSVField(raw: string): string {
-  const value = neutralizeCsvFormula(raw)
-  if (value.includes(',') || value.includes('"') || value.includes('\n')) {
-    return `"${value.replace(/"/g, '""')}"`
-  }
-  return value
-}
 
 // ── Export ───────────────────────────────────────────────────
 
@@ -47,23 +39,23 @@ export function exportPropertyCSV(
       const effectiveLin =
         item.lin ?? (item.parent_item_id ? linByContainerId.get(item.parent_item_id) ?? '' : '')
       return [
-        escapeCSVField(item.name),
-        escapeCSVField(item.nomenclature ?? ''),
-        escapeCSVField(item.nsn ?? ''),
-        escapeCSVField(effectiveLin),
+        csvCell(item.name),
+        csvCell(item.nomenclature ?? ''),
+        csvCell(item.nsn ?? ''),
+        csvCell(effectiveLin),
         String(item.quantity),
         item.quantity_authorized == null ? '' : String(item.quantity_authorized),
-        escapeCSVField(item.serial_number ?? ''),
-        escapeCSVField(item.location_id ? locationMap.get(item.location_id) ?? '' : ''),
+        csvCell(item.serial_number ?? ''),
+        csvCell(item.location_id ? locationMap.get(item.location_id) ?? '' : ''),
         item.item_type ?? 'DI',
         item.unit_of_issue ?? '',
         item.pack_size == null ? '' : String(item.pack_size),
-        escapeCSVField(item.expiry_date ?? ''),
+        csvCell(item.expiry_date ?? ''),
       ]
     })
 
   const csv = [CSV_HEADERS.join(','), ...rows.map((r) => r.join(','))].join('\r\n')
-  downloadCSVString(csv, `property-export-${new Date().toISOString().slice(0, 10)}.csv`)
+  downloadCSVString(csv, `property-export-${toDateKey(new Date())}.csv`)
 }
 
 // ── Template ────────────────────────────────────────────────
@@ -542,25 +534,13 @@ export function reconcileImport(
 export function exportShortageCSV(orders: OrderLine[]): void {
   const headers = ['NSN', 'LIN', 'Name', 'Authorized', 'On Hand', 'Order'] as const
   const rows = orders.map((o) => [
-    escapeCSVField(o.nsn ?? ''),
-    escapeCSVField(o.lin ?? ''),
-    escapeCSVField(o.name),
+    csvCell(o.nsn ?? ''),
+    csvCell(o.lin ?? ''),
+    csvCell(o.name),
     String(o.authorized),
     String(o.onHand),
     String(o.order),
   ])
   const csv = [headers.join(','), ...rows.map((r) => r.join(','))].join('\r\n')
-  downloadCSVString(csv, `shortage-order-${new Date().toISOString().slice(0, 10)}.csv`)
-}
-
-// ── Download helper ─────────────────────────────────────────
-
-function downloadCSVString(csv: string, filename: string): void {
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  a.click()
-  URL.revokeObjectURL(url)
+  downloadCSVString(csv, `shortage-order-${toDateKey(new Date())}.csv`)
 }

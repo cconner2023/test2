@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Check, Inbox, Dices } from 'lucide-react'
+import { Check, Inbox, Dices, Plus } from 'lucide-react'
+import { ActionPill } from '@/Components/primitives/ActionPill'
 import { useAuth } from '../../Hooks/useAuth'
 import { useSubClusters } from '../../Hooks/useSubClusters'
 import { FooterPill } from '@/Components/primitives/FooterPill'
 import { EmptyState } from '@/Components/primitives/EmptyState'
 import { ActionButton } from '@/Components/primitives/ActionButton'
-import { PreviewOverlay } from '../PreviewOverlay'
+import { PaneStack, type StackScreen } from '@/Components/primitives/PaneStack'
 import { TextInput } from '@/Components/primitives/FormInputs'
 import { validatePasswordComplexity } from '../../lib/constants'
 import { generatePassphrase } from '../../lib/intakePassphrase'
@@ -29,24 +30,6 @@ interface IntakeMintSectionProps {
 }
 
 /**
- * Openers published by the mounted section(s), most recent last.
- *
- * The add action belongs on the CONTAINER header — the Settings pane header, or the
- * messaging-settings sheet — and this section sits two components below both of
- * them. Threading a signal prop down each chain (Settings → ClinicPanel → here,
- * MessagesDrawer → MessagingOncallSettings → here) would put clinic-line state in
- * two panels that have no other reason to hold it. The header calls the opener
- * instead; whichever surface mounted last is the one on screen, so it answers.
- */
-const mintOpeners: Array<() => void> = []
-
-/** Open the mint overlay on whichever outside-contact section is currently mounted.
- *  No-ops when none is (non-supervisor, or the panel is not open). */
-export function openIntakeLineMint(): void {
-  mintOpeners[mintOpeners.length - 1]?.()
-}
-
-/**
  * Outside-contact LINES for the cluster.
  *
  * A cluster used to have exactly one credential, so every outside call, message and
@@ -56,8 +39,7 @@ export function openIntakeLineMint(): void {
  * one code and never learns the others exist.
  *
  *   Empty: EmptyState (card variant) + overlay action that mints the first line.
- *   Live : one card per line. The add action lives on the container header and
- *          reaches this section through `openIntakeLineMint`.
+ *   Live : one card per line.
  *
  * Minting asks for the routing scope up front and does NOT default to cluster-wide:
  * with several lines in play, "unset means everyone" is how a new line silently
@@ -77,7 +59,6 @@ export function IntakeMintSection({ clinicId, onLinesChanged }: IntakeMintSectio
   const [formError, setFormError] = useState<string | null>(null)
 
   const [mintOpen, setMintOpen] = useState(false)
-  const [mintAnchor, setMintAnchor] = useState<DOMRect | null>(null)
   const [mintName, setMintName] = useState('')
   const [mintPass1, setMintPass1] = useState('')
   const [mintPass2, setMintPass2] = useState('')
@@ -119,30 +100,16 @@ export function IntakeMintSection({ clinicId, onLinesChanged }: IntakeMintSectio
     setLines((prev) => prev.map((l) => (l.id === id ? { ...l, ...patch } : l)))
   }, [])
 
-  // `anchor` null = opened from a container header the section cannot see, so the
-  // overlay centres instead of growing out of a rect (same as messaging settings).
-  const openMint = useCallback((anchor: HTMLElement | null, name: string) => {
+  const openMint = useCallback((name: string) => {
     setFormError(null)
     setMintName(name)
     setMintPass1('')
     setMintPass2('')
     mintScope.current = { scopeMode: 'sub_clusters', subClusters: [], members: [] }
-    setMintAnchor(anchor ? anchor.getBoundingClientRect() : null)
     setMintOpen(true)
   }, [])
 
-  const closeMint = useCallback(() => { setMintOpen(false); setMintAnchor(null); setFormError(null) }, [])
-
-  // Publish the opener for the container header. LIFO: the section that mounted
-  // most recently is the visible one.
-  useEffect(() => {
-    const open = () => openMint(null, '')
-    mintOpeners.push(open)
-    return () => {
-      const i = mintOpeners.indexOf(open)
-      if (i >= 0) mintOpeners.splice(i, 1)
-    }
-  }, [openMint])
+  const closeMint = useCallback(() => { if (!busy) { setMintOpen(false); setFormError(null) } }, [busy])
 
   const fillMint = useCallback(() => {
     const p = generatePassphrase()
@@ -166,12 +133,71 @@ export function IntakeMintSection({ clinicId, onLinesChanged }: IntakeMintSectio
       // edge-authored E2E envelope (the AES key travels inside it), so the line is
       // the only thing minted here.
       setFormError(null)
-      closeMint()
+      setMintOpen(false)
       await refresh()
     } finally {
       setBusy(false)
     }
-  }, [mintName, mintPass1, mintPass2, clinicId, closeMint, refresh])
+  }, [mintName, mintPass1, mintPass2, clinicId, refresh])
+
+  const mintScreens: Record<string, StackScreen> = {
+    mint: {
+      title: 'Mint a line',
+      footer: (
+        <FooterPill>
+          <ActionButton icon={Dices} label="Random" onClick={fillMint} />
+        </FooterPill>
+      ),
+      rightFooter: mintName.trim().length > 0 && !busy ? (
+        <FooterPill side="right">
+          <ActionButton icon={Check} label="Mint" variant="confirm" onClick={onMintConfirm} />
+        </FooterPill>
+      ) : undefined,
+      render: () => (
+        <div className="pb-2">
+          <div className="px-3 pt-2">
+            <PageSectionHeader>Name</PageSectionHeader>
+            <TextInput
+              value={mintName}
+              onChange={setMintName}
+              placeholder="SD phone"
+              ariaLabel="Line name"
+            />
+          </div>
+
+          <div className="px-3 pt-4">
+            <PageSectionHeader>Passphrase</PageSectionHeader>
+          </div>
+          <div className="px-3 space-y-2">
+            <TextInput
+              value={mintPass1}
+              onChange={setMintPass1}
+              placeholder="Passphrase"
+              ariaLabel="Passphrase"
+              hint={mintPass1.length > 0 ? validatePasswordComplexity(mintPass1) : null}
+            />
+            <TextInput
+              value={mintPass2}
+              onChange={setMintPass2}
+              placeholder="Confirm passphrase"
+              ariaLabel="Confirm passphrase"
+              hint={mintPass2.length > 0 && mintPass1 !== mintPass2 ? 'Passphrases do not match' : null}
+            />
+          </div>
+
+          <div className="px-3 pt-4">
+            <PageSectionHeader>Routing</PageSectionHeader>
+          </div>
+          <IntakeLineScopeEditor
+            initial={mintScope.current}
+            subClusters={subClusters}
+            onChange={(next) => { mintScope.current = next }}
+          />
+          {formError && <p className="text-[10pt] text-themeredred px-4 pb-2">{formError}</p>}
+        </div>
+      ),
+    },
+  }
 
   if (!isSupervisorRole) return null
   if (loading) return null
@@ -190,7 +216,7 @@ export function IntakeMintSection({ clinicId, onLinesChanged }: IntakeMintSectio
               action={{
                 icon: Inbox,
                 label: 'Mint a line',
-                onClick: (anchor) => openMint(anchor, 'Main'),
+                onClick: () => openMint('Main'),
               }}
             />
           )}
@@ -199,17 +225,22 @@ export function IntakeMintSection({ clinicId, onLinesChanged }: IntakeMintSectio
 
       {/* ── One card per line ───────────────────────────────────── */}
       {lines.length > 0 && (
-        <div className="space-y-3">
-          {lines.map((line) => (
-            <IntakeLineCard
-              key={line.id}
-              line={line}
-              subClusters={subClusters}
-              onPatch={patchLine}
-              onChanged={() => void refresh(true)}
-              onRemoved={() => void refresh()}
-            />
-          ))}
+        <div className="relative">
+          <div className="space-y-3">
+            {lines.map((line) => (
+              <IntakeLineCard
+                key={line.id}
+                line={line}
+                subClusters={subClusters}
+                onPatch={patchLine}
+                onChanged={() => void refresh(true)}
+                onRemoved={() => void refresh()}
+              />
+            ))}
+          </div>
+          <ActionPill shadow="sm" placement="overlay">
+            <ActionButton icon={Plus} label="Add line" onClick={() => openMint('')} />
+          </ActionPill>
         </div>
       )}
 
@@ -224,68 +255,13 @@ export function IntakeMintSection({ clinicId, onLinesChanged }: IntakeMintSectio
            rotated, from the ⋯ menu), and CHANNELS is absent because the line does
            not exist yet to carry the flags — a fresh line lands on the server
            defaults and the card's Edit opens on them. */}
-      <PreviewOverlay
+      <PaneStack
         isOpen={mintOpen}
         onClose={closeMint}
-        anchorRect={mintAnchor}
-        title="Mint a line"
-        maxWidth={360}
-        footer={
-          <FooterPill>
-            <ActionButton icon={Dices} label="Random" onClick={fillMint} />
-          </FooterPill>
-        }
-        rightFooter={
-          <FooterPill side="right">
-            <ActionButton
-              icon={Check}
-              label="Mint"
-              variant={busy || mintName.trim().length === 0 ? 'disabled' : 'confirm'}
-              onClick={onMintConfirm}
-            />
-          </FooterPill>
-        }
-      >
-        <div className="px-3 pt-2">
-          <PageSectionHeader>Name</PageSectionHeader>
-          <TextInput
-            value={mintName}
-            onChange={setMintName}
-            placeholder="SD phone"
-            ariaLabel="Line name"
-          />
-        </div>
-
-        <div className="px-3 pt-4">
-          <PageSectionHeader>Passphrase</PageSectionHeader>
-        </div>
-        <div className="px-3 space-y-2">
-          <TextInput
-            value={mintPass1}
-            onChange={setMintPass1}
-            placeholder="Passphrase"
-            ariaLabel="Passphrase"
-            hint={mintPass1.length > 0 ? validatePasswordComplexity(mintPass1) : null}
-          />
-          <TextInput
-            value={mintPass2}
-            onChange={setMintPass2}
-            placeholder="Confirm passphrase"
-            ariaLabel="Confirm passphrase"
-            hint={mintPass2.length > 0 && mintPass1 !== mintPass2 ? 'Passphrases do not match' : null}
-          />
-        </div>
-
-        <div className="px-3 pt-4">
-          <PageSectionHeader>Routing</PageSectionHeader>
-        </div>
-        <IntakeLineScopeEditor
-          initial={{ scopeMode: 'sub_clusters', subClusters: [], members: [] }}
-          subClusters={subClusters}
-          onChange={(next) => { mintScope.current = next }}
-        />
-        {formError && <p className="text-[10pt] text-themeredred px-4 pb-2">{formError}</p>}
-      </PreviewOverlay>
+        initial={{ key: 'mint' }}
+        screens={mintScreens}
+        loading={busy}
+      />
     </section>
   )
 }

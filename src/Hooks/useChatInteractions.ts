@@ -21,11 +21,12 @@
  * - hasSelection, canDeleteSelection: selection state helpers
  */
 
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import type { DecryptedSignalMessage } from '../lib/signal/transportTypes'
 import type { ClinicMedic } from '../Types/SupervisorTestTypes'
 import type { SwipeAction } from '../Utilities/swipeActions'
 import { copyText } from '../Utilities/clipboardUtils'
+import { downloadBlob } from '../Utilities/downloadUtils'
 
 export interface PendingDelete {
   peerId: string
@@ -178,18 +179,38 @@ export function useChatInteractions({
     setContextMenu(null)
   }, [contextMsg])
 
+  const contextImage = contextMsg?.content?.type === 'image' ? contextMsg.content : null
+  const contextImageId = contextImage ? contextMsg?.id ?? null : null
+  const preparedImageRef = useRef<{ id: string; blob: Blob } | null>(null)
+
+  const contextImagePath = contextImage?.path
+  const contextImageKey = contextImage?.key
+  const contextImageStore = contextImage?.store
+
+  useEffect(() => {
+    if (!contextImageId || !contextImagePath || !contextImageKey) return
+    if (preparedImageRef.current?.id === contextImageId) return
+    let cancelled = false
+    void (async () => {
+      const { downloadDecryptedAttachment } = await import('../lib/signal/attachmentService')
+      const result = await downloadDecryptedAttachment(contextImagePath, contextImageKey, contextImageStore)
+      if (!cancelled && result.ok) preparedImageRef.current = { id: contextImageId, blob: result.data }
+    })()
+    return () => { cancelled = true }
+  }, [contextImageId, contextImagePath, contextImageKey, contextImageStore])
+
   const handleSaveImage = useCallback(async () => {
     if (!contextMsg || contextMsg.content?.type !== 'image') return
     setContextMenu(null)
+    const prepared = preparedImageRef.current
+    if (prepared?.id === contextMsg.id) {
+      downloadBlob(prepared.blob, `photo-${Date.now()}.jpg`)
+      return
+    }
     const { downloadDecryptedAttachment } = await import('../lib/signal/attachmentService')
     const result = await downloadDecryptedAttachment(contextMsg.content.path, contextMsg.content.key, contextMsg.content.store)
     if (!result.ok) return
-    const url = URL.createObjectURL(result.data)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `photo-${Date.now()}.jpg`
-    a.click()
-    URL.revokeObjectURL(url)
+    downloadBlob(result.data, `photo-${Date.now()}.jpg`)
   }, [contextMsg])
 
   const closeContextMenu = useCallback(() => setContextMenu(null), [])

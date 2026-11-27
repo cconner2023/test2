@@ -20,3 +20,8 @@ export function restoreCsvFormula(value: string): string {
     ? value.slice(1)
     : value
 }
+
+export function csvCell(raw: string): string {
+  const value = neutralizeCsvFormula(raw)
+  return /[",\n\r]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value
+}

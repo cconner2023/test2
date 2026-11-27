@@ -12,7 +12,7 @@
  * actions (View/Edit/Delete) that make sense for their surface.
  */
 
-import { useCallback, useState, type ReactNode } from 'react'
+import { useCallback, useRef, useState, type ReactNode } from 'react'
 import { KeyRound, LogOut, Mail, MessageSquare, Eye, Pencil, Trash2, Check, RefreshCw } from 'lucide-react'
 import { forceLogoutUser } from '../../lib/adminService'
 import type { AdminUser } from '../../lib/adminService'
@@ -59,6 +59,7 @@ export function useUserActions({ currentUserId, onOpenConversation }: UseUserAct
   const [vaultMissingUser, setVaultMissingUser] = useState<AdminUser | null>(null)
   const [forceLogoutTarget, setForceLogoutTarget] = useState<AdminUser | null>(null)
   const [forceLogoutProcessing, setForceLogoutProcessing] = useState(false)
+  const forceLogoutInFlightRef = useRef(false)
 
   const openResetPassword = useCallback((user: AdminUser, rect: DOMRect | null) => {
     setResetPwUser(user)
@@ -84,10 +85,12 @@ export function useUserActions({ currentUserId, onOpenConversation }: UseUserAct
 
   const handleForceLogout = useCallback(async () => {
     const target = forceLogoutTarget
-    if (!target) return
+    if (!target || forceLogoutInFlightRef.current) return
+    forceLogoutInFlightRef.current = true
     setForceLogoutTarget(null)
     setForceLogoutProcessing(true)
     const result = await forceLogoutUser(target.id)
+    forceLogoutInFlightRef.current = false
     setForceLogoutProcessing(false)
     const name = userName(target)
     if (result.success) {
@@ -138,7 +141,7 @@ export function useUserActions({ currentUserId, onOpenConversation }: UseUserAct
       label: forceLogoutProcessing ? 'Logging out' : 'Force logout',
       icon: LogOut,
       variant: forceLogoutProcessing ? 'disabled' : 'default',
-      onAction: () => setForceLogoutTarget(user),
+      onAction: () => { if (!forceLogoutInFlightRef.current) setForceLogoutTarget(user) },
     })
     if (opts.onDelete) items.push({ key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => opts.onDelete!(user) })
     return items

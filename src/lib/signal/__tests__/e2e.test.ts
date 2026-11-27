@@ -511,6 +511,17 @@ describe('logout purge completeness', () => {
     'clearBackupKey',
     'clearClinicUsersCache',
     'clearSubClusterCache',
+    'clearAllUserData',
+    'destroyOutsideEntityChannels',
+    'clearInviteCache',
+    'clearActiveDraft',
+    'resetClinicMedics',
+    'useFeatureVotesStore.reset',
+    'useTC3Store.resetCard',
+    'useTC3Store.clearQueue',
+    'useMedevacStore.req',
+    'useMapSearchStore.clearRecents',
+    'useNavPreferencesStore.resetToDefault',
   ]
 
   it('all required cleanup functions are documented', () => {

@@ -18,69 +18,13 @@ import { createLogger } from '../Utilities/Logger'
 import {
   fetchPeerDevices,
   sendMessageFanOut,
-  fetchPeerBundleForDevice,
 } from './signal/signalService'
-import {
-  hasClinicSession,
-  createClinicOutboundSession,
-  encryptClinicMessage,
-  deleteClinicSession,
-  pruneClinicSessions,
-} from './signal/clinicSession'
+import { pruneClinicSessions } from './signal/clinicSession'
 import { serializeContent } from './signal/messageContent'
 import type { PropertyEventContent, PropertyEventPayload, PropertyEntity } from './signal/messageContent'
-import type { PeerDevice, FanOutMessageInput, PeerBundleRpcResult } from './signal/transportTypes'
-import type { PublicKeyBundle } from './signal/types'
+import { encryptForAllClinicDevices, fanOutToClinics, type FanOutOutcome } from './clinicFanOut'
 
 const logger = createLogger('PropertyVault')
-
-function rpcResultToBundle(rpc: PeerBundleRpcResult): PublicKeyBundle {
-  return {
-    userId: rpc.userId,
-    deviceId: rpc.deviceId,
-    identitySigningKey: rpc.identitySigningKey,
-    identityDhKey: rpc.identityDhKey,
-    signedPreKey: {
-      keyId: rpc.signedPreKeyId,
-      publicKey: rpc.signedPreKey,
-      signature: rpc.signedPreKeySig,
-    },
-    oneTimePreKeys: rpc.oneTimePreKey ? [rpc.oneTimePreKey] : [],
-  }
-}
-
-async function encryptForAllClinicDevices(
-  clinicId: string,
-  peerDevices: PeerDevice[],
-  serialized: string,
-  senderUuid: string,
-): Promise<FanOutMessageInput[]> {
-  const results: FanOutMessageInput[] = []
-  for (const device of peerDevices) {
-    try {
-      if (device.deviceId === 'vault') {
-        await deleteClinicSession(clinicId, 'vault')
-      }
-      const sessionExists = await hasClinicSession(clinicId, device.deviceId)
-      if (!sessionExists) {
-        const bundleResult = await fetchPeerBundleForDevice(clinicId, device.deviceId)
-        if (!bundleResult.ok) {
-          logger.warn(`No bundle for clinic device ${clinicId}:${device.deviceId}, skipping`)
-          continue
-        }
-        const bundle = rpcResultToBundle(bundleResult.data)
-        const sealedEnvelope = await createClinicOutboundSession(clinicId, device.deviceId, bundle, serialized, senderUuid)
-        results.push({ recipientDeviceId: device.deviceId, payload: sealedEnvelope as unknown as Record<string, unknown>, messageType: 'initial' })
-      } else {
-        const sealedEnvelope = await encryptClinicMessage(clinicId, device.deviceId, serialized, senderUuid)
-        results.push({ recipientDeviceId: device.deviceId, payload: sealedEnvelope as unknown as Record<string, unknown>, messageType: 'message' })
-      }
-    } catch (e) {
-      logger.warn(`Failed to encrypt for clinic device ${clinicId}:${device.deviceId}:`, e instanceof Error ? e.message : e)
-    }
-  }
-  return results
-}
 
 /**
  * Resolve the set of clinics a property entity should be distributed to:
@@ -124,13 +68,13 @@ export async function resolvePropertyTargetClinics(
  * The originId is taken from data.originId (caller pre-stamps it so the local
  * projection, the spine row, and the envelope all carry the same id), else generated.
  */
-export async function sendPropertyEvent(
+export async function fanPropertyEvent(
   userId: string | null,
   action: 'c' | 'u' | 'd',
   entity: PropertyEntity,
   data: PropertyEventPayload,
   fanToClinics?: string[],
-): Promise<string | null> {
+): Promise<{ originId: string; outcome: FanOutOutcome } | null> {
   const targetClinics = (fanToClinics && fanToClinics.length > 0)
     ? Array.from(new Set(fanToClinics))
     : (data.target_clinic_ids && data.target_clinic_ids.length > 0)
@@ -147,27 +91,19 @@ export async function sendPropertyEvent(
   const serialized = serializeContent(content)
   const originId = data.originId ?? crypto.randomUUID()
 
-  let anySent = false
-  for (const targetClinicId of targetClinics) {
-    try {
-      const devicesResult = await fetchPeerDevices(targetClinicId)
-      if (!devicesResult.ok || devicesResult.data.length === 0) {
-        logger.warn(`No clinic devices for property fan-out to ${targetClinicId}`)
-        continue
-      }
-      await pruneClinicSessions(targetClinicId, new Set(devicesResult.data.map(d => d.deviceId)))
-      const targetDevices = devicesResult.data.filter(d => d.deviceId !== clinicDeviceId)
-      if (targetDevices.length === 0) continue
-      const inputs = await encryptForAllClinicDevices(targetClinicId, targetDevices, serialized, userId)
-      if (inputs.length > 0) {
-        await sendMessageFanOut(userId, clinicDeviceId, targetClinicId, inputs, targetClinicId, originId, true)
-        anySent = true
-      }
-    } catch (e) {
-      logger.warn(`Failed to send property event to ${targetClinicId}:`, e instanceof Error ? e.message : e)
-    }
-  }
-  return anySent ? originId : null
+  const outcome = await fanOutToClinics(userId, clinicDeviceId, targetClinics, serialized, originId, 'property event')
+  return { originId, outcome }
+}
+
+export async function sendPropertyEvent(
+  userId: string | null,
+  action: 'c' | 'u' | 'd',
+  entity: PropertyEntity,
+  data: PropertyEventPayload,
+  fanToClinics?: string[],
+): Promise<string | null> {
+  const r = await fanPropertyEvent(userId, action, entity, data, fanToClinics)
+  return r && r.outcome.landed.length > 0 ? r.originId : null
 }
 
 /** One entity to fan out in a coalesced batch. payload.originId is pre-stamped by the
@@ -194,6 +130,7 @@ export interface PropertyBatchEvent {
 export async function sendPropertyEventsBatch(
   userId: string | null,
   events: PropertyBatchEvent[],
+  failedByOrigin?: Map<string, string[]>,
 ): Promise<Set<string>> {
   const sentOriginIds = new Set<string>()
   if (!userId || events.length === 0) return sentOriginIds
@@ -227,11 +164,20 @@ export async function sendPropertyEventsBatch(
     }
   }
 
+  const markFailed = (originId: string, clinicId: string) => {
+    if (!failedByOrigin) return
+    const arr = failedByOrigin.get(originId)
+    if (arr) { if (!arr.includes(clinicId)) arr.push(clinicId) }
+    else failedByOrigin.set(originId, [clinicId])
+  }
+
   for (const [targetClinicId, clinicEvents] of byClinic) {
+    const landedHere = new Set<string>()
     try {
       const devicesResult = await fetchPeerDevices(targetClinicId)
       if (!devicesResult.ok || devicesResult.data.length === 0) {
         logger.warn(`No clinic devices for property batch fan-out to ${targetClinicId}`)
+        for (const p of clinicEvents) markFailed(p.originId, targetClinicId)
         continue
       }
       await pruneClinicSessions(targetClinicId, new Set(devicesResult.data.map(d => d.deviceId)))
@@ -243,16 +189,27 @@ export async function sendPropertyEventsBatch(
       const sends: Promise<{ originId: string; ok: boolean }>[] = []
       for (const p of clinicEvents) {
         const inputs = await encryptForAllClinicDevices(targetClinicId, targetDevices, p.serialized, userId)
-        if (inputs.length === 0) continue
+        if (inputs.length === 0) {
+          markFailed(p.originId, targetClinicId)
+          continue
+        }
         sends.push(
           sendMessageFanOut(userId, clinicDeviceId, targetClinicId, inputs, targetClinicId, p.originId, true)
             .then(res => ({ originId: p.originId, ok: res.ok }))
             .catch(() => ({ originId: p.originId, ok: false })),
         )
       }
-      for (const r of await Promise.all(sends)) if (r.ok) sentOriginIds.add(r.originId)
+      for (const r of await Promise.all(sends)) {
+        if (r.ok) {
+          sentOriginIds.add(r.originId)
+          landedHere.add(r.originId)
+        } else {
+          markFailed(r.originId, targetClinicId)
+        }
+      }
     } catch (e) {
       logger.warn(`Failed property batch fan-out to ${targetClinicId}:`, e instanceof Error ? e.message : e)
+      for (const p of clinicEvents) if (!landedHere.has(p.originId)) markFailed(p.originId, targetClinicId)
     }
   }
   return sentOriginIds

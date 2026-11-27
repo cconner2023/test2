@@ -4,6 +4,7 @@
 import type { LaceReport, Sitrep, Opord } from '../Types/ReportTypes'
 import type { MedevacRequest } from '../Types/MedevacTypes'
 import { copyText } from '../Utilities/clipboardUtils'
+import { downloadBlob } from '../Utilities/downloadUtils'
 import {
   MEDEVAC_PRECEDENCE_LABELS,
   MEDEVAC_EQUIPMENT_LABELS,
@@ -245,13 +246,7 @@ export async function copyToClipboard(text: string, label?: string): Promise<voi
 }
 
 export function downloadAsText(text: string, filename: string): void {
-  const blob = new Blob([text], { type: 'text/plain' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  a.click()
-  URL.revokeObjectURL(url)
+  downloadBlob(new Blob([text], { type: 'text/plain' }), filename)
 }
 
 export function printReport(title: string, text: string): void {

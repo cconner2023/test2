@@ -78,7 +78,6 @@ interface AdminMobileSheetProps {
  * The mobile admin detail surface: ONE sheet vessel hosting every detail. The
  * vessel and header stay mounted and only the body morphs, so detail ⇄ detail
  * hops read as one continuous surface rather than sheets sliding down and up.
- * Portals to body (z-1200) to clear the mobileFullScreen drawer.
  */
 export function AdminMobileSheet({ isOpen, screenId, title, titleNode, actions, onClose, children }: AdminMobileSheetProps) {
     // Hold the last screen while the sheet slides closed, so a dismiss doesn't

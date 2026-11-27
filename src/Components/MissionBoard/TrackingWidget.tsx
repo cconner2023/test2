@@ -73,8 +73,7 @@ export function TrackingWidget() {
   const action = { icon: Plus, label: 'Check in', onClick: openTrackingCheckIn }
 
   const menuItems = (e: TrackingEntry) => buildTrackingMenuItems(e, {
-    onOpen: x => openTrackingEntry(x.id),
-    onEdit: x => openTrackingEntry(x.id, true),
+    onEdit: x => openTrackingEntry(x.id),
     onMove: (x, to) => { void updateEntry(x.id, d => moveData(d, to, Date.now())) },
     onTransit: (x, to) => { void updateEntry(x.id, d => transitData(d, to, me, Date.now())) },
     onDelete: setPendingDelete,
